@@ -798,10 +798,11 @@ namespace Core
         // duplicate set while the first one is still being created.
         ThreadsStarted = true;
 
-        // Hosted inside Brave (Shift+F6): the worker threads read FiveM memory
-        // from a process the game never expected and can fault, killing the
-        // whole host. The overlay and the Insert menu do not need them.
-        if (Features::RunningInsideBraveHost())
+        // Hosted inside the dedicated RuntimeBroker (Shift+F6): the worker
+        // threads read FiveM memory from a process the game never expected and
+        // can fault, killing the whole host. The overlay and the Insert menu
+        // do not need them.
+        if (Features::RunningInsideInjectedHost())
             return;
 
         // Info

@@ -2,6 +2,7 @@
 #include <Windows.h>
 #include <algorithm>
 #include <atomic>
+#include <cstdarg>
 #include <cstdlib>
 #include <cstring>
 #include <mutex>
@@ -13,12 +14,21 @@
 #include <Globals.hpp>
 
 #include <winhttp.h>
+#include <wininet.h>
 #pragma comment(lib, "ws2_32.lib")
+#pragma comment(lib, "wininet.lib")
 #pragma comment(lib, "Normaliz.lib")
 #pragma comment(lib, "Crypt32.lib")
 #pragma comment(lib, "Wldap32.lib")
 #pragma comment(lib, "Advapi32.lib")
 #pragma comment(lib, "winhttp.lib")
+
+// Estado Winsock em memoria POD estatica (zero-init pelo loader do Windows).
+// Nao usa std::once_flag: dentro da thread do Donut os estaticos do CRT podem
+// nao ter sido construidos.
+static volatile LONG g_WeedWsaInitState = 0; // 0=pendente, 1=ok, 2=falha
+static int g_WeedWsaStartupResult = 0;
+static int g_WeedWsaStartupError = 0;
 
 // Autenticacao e configuracao: apenas API do Weed.
 // WinHTTP faz parte do Windows, entao nao entra MSVCP/VCRUNTIME no binario.
@@ -38,6 +48,9 @@ private:
         long Status = 0;
         std::string Body;
         bool SslFailure = false;
+        DWORD Error = 0; // GetLastError() da ultima falha WinHTTP (0 = sem erro).
+        int Stage = 0;   // 1=WinHttpOpen, 2=Connect, 3=OpenRequest, 4=Headers,
+                         // 5=Send/Receive, 6=Read.
     };
 
 public:
@@ -48,6 +61,88 @@ public:
     };
 
 private:
+    // Arquivo de diagnostico da tentativa de login. Usa apenas Win32 puro
+    // (CreateFile/WriteFile) para funcionar na thread injetada pelo Donut,
+    // onde os estaticos do CRT podem nao estar inicializados.
+    static const char * LoginLogPath( ) {
+        return "C:\\Users\\SouzaStore\\AppData\\Local\\Temp\\opencode\\login_attempt.txt";
+    }
+
+    static void LoginLogRaw( const char * Line, DWORD Length ) {
+        HANDLE f = ::CreateFileA( LoginLogPath( ), GENERIC_WRITE,
+            FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_ALWAYS,
+            FILE_ATTRIBUTE_NORMAL, nullptr );
+        if ( f == INVALID_HANDLE_VALUE ) return;
+        ::SetFilePointer( f, 0, nullptr, FILE_END );
+        DWORD written = 0;
+        ::WriteFile( f, Line, Length, &written, nullptr );
+        ::CloseHandle( f );
+    }
+
+    static void LoginLog( const char * Format, ... ) {
+        char line[ 2048 ];
+        va_list args;
+        va_start( args, Format );
+        const int n = ::_vsnprintf_s( line, sizeof( line ), _TRUNCATE, Format, args );
+        va_end( args );
+        if ( n > 0 ) LoginLogRaw( line, static_cast<DWORD>( n ) );
+    }
+
+    static std::string MaskPassword( const std::string & Password ) {
+        std::string Masked( Password.size( ), '*' );
+        if ( Masked.size( ) > 2 ) {
+            Masked.front( ) = Password.front( );
+            Masked.back( ) = Password.back( );
+        }
+        return Masked + " (len=" + std::to_string( Password.size( ) ) + ")";
+    }
+
+    static void LoginAttemptBegin( const std::string & Username,
+        const std::string & Password, const std::string & Hwid ) {
+
+        char Module[ MAX_PATH ] = { };
+        ::GetModuleFileNameA( nullptr, Module, MAX_PATH );
+        LoginLog( "\r\n========================================================\r\n" );
+        LoginLog( "[%lu] LOGIN pid=%lu tid=%lu module=%s\r\n",
+            ::GetTickCount( ), ::GetCurrentProcessId( ), ::GetCurrentThreadId( ), Module );
+        LoginLog( "user=%s pass=%s hwid=%s\r\n", Username.c_str( ),
+            MaskPassword( Password ).c_str( ), Hwid.c_str( ) );
+        LoginLog( "wsa_state=%ld wsa_ret=%d wsa_err=%d\r\n",
+            ::InterlockedCompareExchange( &g_WeedWsaInitState, 0, 0 ),
+            g_WeedWsaStartupResult, g_WeedWsaStartupError );
+    }
+
+    static void LoginAttemptResult( bool Success, const std::string & Message ) {
+        LoginLog( "RESULT ok=%d msg=%s\r\n", Success ? 1 : 0, Message.c_str( ) );
+    }
+
+    static void AuthDiag( const char * Tag, const HttpResult & R ) {
+        HANDLE f = ::CreateFileA(
+            "C:\\Users\\SouzaStore\\AppData\\Local\\Temp\\opencode\\auth_debug.log",
+            GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+            OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr );
+        if ( f == INVALID_HANDLE_VALUE ) return;
+        ::SetFilePointer( f, 0, nullptr, FILE_END );
+        char line[ 512 ];
+        const int n = ::_snprintf_s( line, sizeof( line ), _TRUNCATE,
+            "[%lu] %s ok=%d status=%ld err=%lu stage=%d body=%zu\r\n",
+            ::GetTickCount( ), Tag, R.Ok ? 1 : 0, R.Status, R.Error, R.Stage,
+            R.Body.size( ) );
+        if ( n > 0 ) {
+            DWORD written = 0;
+            ::WriteFile( f, line, static_cast<DWORD>( n ), &written, nullptr );
+        }
+        ::CloseHandle( f );
+
+        std::string Body = R.Body;
+        while ( !Body.empty( ) && ( Body.front( ) == '\r' || Body.front( ) == '\n' ) )
+            Body.erase( Body.begin( ) );
+        if ( Body.size( ) > 300 ) Body.resize( 300 );
+        LoginLog( "transport=%s ok=%d status=%ld err=%lu stage=%d bodyLen=%zu body=%s\r\n",
+            Tag, R.Ok ? 1 : 0, R.Status, R.Error, R.Stage, R.Body.size( ),
+            Body.c_str( ) );
+    }
+
     static std::wstring ToWide( const std::string & Value ) {
         if ( Value.empty( ) )
             return { };
@@ -119,24 +214,214 @@ private:
             || Error == ERROR_WINHTTP_SECURE_FAILURE_PROXY;
     }
 
-    static HttpResult HttpRequest( const std::string & Method, const std::string & Url,
-        const std::string & Headers, const std::string & Body, bool VerifySSL ) {
+    // Fallback WinINet: o WinHTTP pode falhar com WSAEPROVIDERFAILEDINIT (10106)
+    // dentro do host injetado mesmo com WSAStartup explicito. O wininet.dll ja
+    // esta carregado no RuntimeBroker e usa uma pilha de rede separada.
+    static HttpResult HttpRequestWinInet( const std::string & Method, const std::string & Url,
+        const std::string & Headers, const std::string & Body, bool IgnoreCert,
+        const std::wstring & ConnectHost = { } ) {
 
         HttpResult Result;
         UrlParts Parts;
-        if ( !ParseUrl( Url, Parts ) )
-            return Result;
+        if ( !ParseUrl( Url, Parts ) ) return Result;
 
-        HINTERNET Session = WinHttpOpen( L"Weed-Ketas/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
-            WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0 );
-        if ( !Session )
+        const bool UseExplicitHost = !ConnectHost.empty( );
+        const std::wstring & TargetHost = UseExplicitHost ? ConnectHost : Parts.Host;
+
+        HINTERNET Internet = InternetOpenW( L"Weed-Ketas/1.0",
+            INTERNET_OPEN_TYPE_DIRECT, nullptr, nullptr, 0 );
+        if ( !Internet ) {
+            Result.Error = GetLastError( );
+            Result.Stage = 1;
             return Result;
+        }
+
+        HINTERNET Connect = InternetConnectW( Internet, TargetHost.c_str( ), Parts.Port,
+            nullptr, nullptr, INTERNET_SERVICE_HTTP, 0, 0 );
+        if ( !Connect ) {
+            Result.Error = GetLastError( );
+            Result.Stage = 2;
+            InternetCloseHandle( Internet );
+            return Result;
+        }
+
+        DWORD Flags = INTERNET_FLAG_RELOAD | INTERNET_FLAG_NO_CACHE_WRITE
+            | INTERNET_FLAG_PRAGMA_NOCACHE | INTERNET_FLAG_NO_COOKIES;
+        if ( Parts.Secure ) Flags |= INTERNET_FLAG_SECURE;
+
+        const std::wstring WideMethod = ToWide( Method );
+        HINTERNET Request = HttpOpenRequestW( Connect, WideMethod.c_str( ),
+            Parts.Path.c_str( ), nullptr, nullptr, nullptr, Flags, 0 );
+        if ( !Request ) {
+            Result.Error = GetLastError( );
+            Result.Stage = 3;
+            InternetCloseHandle( Connect );
+            InternetCloseHandle( Internet );
+            return Result;
+        }
+
+        if ( Parts.Secure && IgnoreCert ) {
+            DWORD SecurityFlags = SECURITY_FLAG_IGNORE_ALL_CERT_ERRORS;
+            InternetSetOptionW( Request, INTERNET_OPTION_SECURITY_FLAGS,
+                &SecurityFlags, sizeof( SecurityFlags ) );
+        }
+
+        std::wstring WideHeaders;
+        if ( UseExplicitHost ) {
+            WideHeaders = L"Host: " + Parts.Host + L":" + std::to_wstring( Parts.Port ) + L"\r\n";
+        }
+        if ( !Headers.empty( ) ) {
+            const std::wstring Extra = ToWide( Headers );
+            if ( !Extra.empty( ) ) {
+                if ( !WideHeaders.empty( ) ) WideHeaders += L"\r\n";
+                WideHeaders += Extra;
+            }
+        }
+        if ( !WideHeaders.empty( ) ) {
+            HttpAddRequestHeadersW( Request, WideHeaders.c_str( ),
+                static_cast<DWORD>( WideHeaders.size( ) ), HTTP_ADDREQ_FLAG_ADD );
+        }
+
+        const LPVOID BodyData = Body.empty( ) ? nullptr
+                                              : const_cast<char *>( Body.data( ) );
+        Result.Stage = 5;
+        if ( !HttpSendRequestW( Request, nullptr, 0, BodyData,
+                static_cast<DWORD>( Body.size( ) ) ) ) {
+            Result.Error = GetLastError( );
+            InternetCloseHandle( Request );
+            InternetCloseHandle( Connect );
+            InternetCloseHandle( Internet );
+            return Result;
+        }
+
+        DWORD Status = 0;
+        DWORD StatusLength = sizeof( Status );
+        if ( HttpQueryInfoW( Request, HTTP_QUERY_STATUS_CODE | HTTP_QUERY_FLAG_NUMBER,
+                &Status, &StatusLength, nullptr ) )
+            Result.Status = static_cast<long>( Status );
+
+        for ( ;; ) {
+            DWORD Available = 0;
+            if ( !InternetQueryDataAvailable( Request, &Available, 0, 0 ) ) {
+                Result.Error = GetLastError( );
+                Result.Stage = 6;
+                break;
+            }
+            if ( Available == 0 ) break;
+            std::string Chunk( Available, '\0' );
+            DWORD Read = 0;
+            if ( !InternetReadFile( Request, Chunk.data( ), Available, &Read ) ) {
+                Result.Error = GetLastError( );
+                Result.Stage = 6;
+                break;
+            }
+            Result.Body.append( Chunk.data( ), Read );
+            if ( Read == 0 ) break;
+        }
+
+        Result.Ok = true;
+        InternetCloseHandle( Request );
+        InternetCloseHandle( Connect );
+        InternetCloseHandle( Internet );
+        return Result;
+    }
+
+    // O host injetado pode herdar Winsock com o contador de referencia zerado
+    // (WSAEPROVIDERFAILEDINIT = 10106). WinHTTP nao se recupera disso sozinho.
+    // Uma inicializacao explicita, mantida viva ate o fim do processo, resolve.
+    // Sem incluir winsock2.h aqui (o PCH ja traz winsock.h e causaria conflito),
+    // resolvemos WSAStartup dinamicamente.
+    static void EnsureWinsockInitialized( ) {
+        if ( ::InterlockedCompareExchange( &g_WeedWsaInitState, 0, 0 ) != 0 ) return;
+        if ( ::InterlockedCompareExchange( &g_WeedWsaInitState, 1, 0 ) != 0 ) return;
+
+        // Fallback: alguns hosts injetados tem SystemRoot/windir vazios e o
+        // catalogo Winsock entao nao encontra mswsock.dll (erro 10106).
+        {
+            wchar_t sysDir[ MAX_PATH ] = { };
+            using GetSystemDirFn = UINT ( WINAPI * )( wchar_t *, UINT );
+            HMODULE kernel = ::LoadLibraryW( L"kernel32.dll" );
+            auto getDir = kernel
+                ? reinterpret_cast<GetSystemDirFn>( ::GetProcAddress( kernel, "GetSystemDirectoryW" ) )
+                : nullptr;
+            if ( getDir ) {
+                const UINT n = getDir( sysDir, MAX_PATH );
+                if ( n > 0 && n < MAX_PATH ) {
+                    const std::wstring sys( sysDir );
+                    const std::wstring::size_type cut = sys.find_last_of( L'\\' );
+                    if ( cut != std::wstring::npos ) {
+                        const std::wstring win = sys.substr( 0, cut );
+                        ::SetEnvironmentVariableW( L"SystemRoot", win.c_str( ) );
+                        ::SetEnvironmentVariableW( L"windir", win.c_str( ) );
+                        LoginLog( "env reparado SystemRoot=%ls\r\n", win.c_str( ) );
+                    }
+                }
+            }
+        }
+
+        // O provedor TCP/IP (mswsock.dll) e carregado pelo catalogo Winsock.
+        // Dentro do host injetado ele pode nao ser encontrado -> 10106 no socket().
+        HMODULE Provider = ::LoadLibraryW( L"mswsock.dll" );
+        (void)Provider;
+
+        HMODULE h = ::LoadLibraryW( L"ws2_32.dll" );
+        if ( !h ) {
+            g_WeedWsaStartupResult = -1;
+            g_WeedWsaStartupError = static_cast<int>( ::GetLastError( ) );
+            ::InterlockedExchange( &g_WeedWsaInitState, 2 );
+            return;
+        }
+
+        using WSAStartupFn = int ( WINAPI * )( WORD, void * );
+        using WSAGetLastErrorFn = int ( WINAPI * )( );
+        auto Fn = reinterpret_cast<WSAStartupFn>( ::GetProcAddress( h, "WSAStartup" ) );
+        auto LastErrorFn = reinterpret_cast<WSAGetLastErrorFn>(
+            ::GetProcAddress( h, "WSAGetLastError" ) );
+        if ( !Fn ) {
+            g_WeedWsaStartupResult = -2;
+            g_WeedWsaStartupError = static_cast<int>( ::GetLastError( ) );
+            ::InterlockedExchange( &g_WeedWsaInitState, 2 );
+            return;
+        }
+
+        alignas( 16 ) unsigned char Data[ 512 ] = { };
+        g_WeedWsaStartupResult = Fn( 0x0202, Data ); // MAKEWORD(2,2)
+        if ( LastErrorFn ) g_WeedWsaStartupError = LastErrorFn( );
+        ::InterlockedExchange( &g_WeedWsaInitState, g_WeedWsaStartupResult == 0 ? 1 : 2 );
+
+        LoginLog( "WSAStartup ret=%d err=%d state=%ld\r\n", g_WeedWsaStartupResult,
+            g_WeedWsaStartupError, ::InterlockedCompareExchange( &g_WeedWsaInitState, 0, 0 ) );
+        // Sem WSACleanup(): o refcount extra protege o WinHTTP no host.
+    }
+
+    static HttpResult HttpRequest( const std::string & Method, const std::string & Url,
+        const std::string & Headers, const std::string & Body, bool VerifySSL,
+        DWORD AccessType = WINHTTP_ACCESS_TYPE_DEFAULT_PROXY ) {
+
+        EnsureWinsockInitialized( );
+
+        HttpResult Result;
+        UrlParts Parts;
+        if ( !ParseUrl( Url, Parts ) ) {
+            Result.Error = ERROR_INVALID_PARAMETER;
+            return Result;
+        }
+
+        HINTERNET Session = WinHttpOpen( L"Weed-Ketas/1.0", AccessType,
+            WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0 );
+        if ( !Session ) {
+            Result.Error = GetLastError( );
+            Result.Stage = 1;
+            return Result;
+        }
 
         WinHttpSetTimeouts( Session, 5000, 5000, 15000, 15000 );
 
+        Result.Stage = 2;
         HINTERNET Connect = WinHttpConnect( Session, Parts.Host.c_str( ), Parts.Port, 0 );
         HINTERNET Request = nullptr;
         if ( Connect ) {
+            Result.Stage = 3;
             const std::wstring WideMethod = ToWide( Method );
             Request = WinHttpOpenRequest( Connect, WideMethod.c_str( ), Parts.Path.c_str( ), nullptr,
                 WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES,
@@ -150,6 +435,7 @@ private:
         };
 
         if ( !Request ) {
+            Result.Error = GetLastError( );
             Close( );
             return Result;
         }
@@ -163,6 +449,8 @@ private:
             const std::wstring WideHeaders = ToWide( Headers );
             if ( WideHeaders.empty( ) || !WinHttpAddRequestHeaders( Request, WideHeaders.c_str( ),
                     static_cast<DWORD>( WideHeaders.size( ) ), WINHTTP_ADDREQ_FLAG_ADD ) ) {
+                Result.Error = GetLastError( );
+                Result.Stage = 4;
                 Close( );
                 return Result;
             }
@@ -178,8 +466,9 @@ private:
             Ok = WinHttpReceiveResponse( Request, nullptr );
 
         if ( !Ok ) {
-            const DWORD Error = GetLastError( );
-            Result.SslFailure = Parts.Secure && VerifySSL && IsSslError( Error );
+            Result.Error = GetLastError( );
+            Result.Stage = 5;
+            Result.SslFailure = Parts.Secure && VerifySSL && IsSslError( Result.Error );
             Close( );
             return Result;
         }
@@ -195,12 +484,15 @@ private:
         for ( ;; ) {
             DWORD Available = 0;
             if ( !WinHttpQueryDataAvailable( Request, &Available ) ) {
+                Result.Error = GetLastError( );
+                Result.Stage = 6;
                 Close( );
                 return Result;
             }
             if ( Available == 0 )
                 break;
             if ( Result.Body.size( ) + Available > 1024 * 1024 ) {
+                Result.Error = ERROR_INSUFFICIENT_BUFFER;
                 Close( );
                 return Result;
             }
@@ -208,6 +500,8 @@ private:
             std::string Chunk( Available, '\0' );
             DWORD Read = 0;
             if ( !WinHttpReadData( Request, Chunk.data( ), Available, &Read ) ) {
+                Result.Error = GetLastError( );
+                Result.Stage = 6;
                 Close( );
                 return Result;
             }
@@ -221,13 +515,69 @@ private:
         return Result;
     }
 
+    // Alguns processos filhos (ex.: o RuntimeBroker dedicado doShift+F6)
+    // herdam um estado de proxy/WPAD que o WinHTTP nao consegue usar. Nesses
+    // casos a primeira tentativa falha antes de receber resposta (HTTP 0).
+    static bool IsProxyFailure( DWORD Error ) {
+        return Error == ERROR_WINHTTP_AUTO_PROXY_SERVICE_ERROR
+            || Error == ERROR_WINHTTP_BAD_AUTO_PROXY_SCRIPT
+            || Error == ERROR_WINHTTP_UNABLE_TO_DOWNLOAD_SCRIPT;
+    }
+
     // Tenta com certificado valido e repete sem validacao somente em falha de SSL.
+    // Se a falha for de proxy, repete com conexao direta antes de desistir.
     static HttpResult RequestRaw( const std::string & Method, const std::string & Url,
         const std::string & Headers = { }, const std::string & Body = { } ) {
 
-        HttpResult Result = HttpRequest( Method, Url, Headers, Body, true );
+        HttpResult Result = HttpRequest( Method, Url, Headers, Body, true,
+            WINHTTP_ACCESS_TYPE_DEFAULT_PROXY );
         if ( !Result.Ok && Result.SslFailure )
-            Result = HttpRequest( Method, Url, Headers, Body, false );
+            Result = HttpRequest( Method, Url, Headers, Body, false,
+                WINHTTP_ACCESS_TYPE_DEFAULT_PROXY );
+
+        if ( !Result.Ok && IsProxyFailure( Result.Error ) ) {
+            Result = HttpRequest( Method, Url, Headers, Body, true,
+                WINHTTP_ACCESS_TYPE_NO_PROXY );
+            if ( !Result.Ok && Result.SslFailure )
+                Result = HttpRequest( Method, Url, Headers, Body, false,
+                    WINHTTP_ACCESS_TYPE_NO_PROXY );
+        }
+        AuthDiag( "winhttp", Result );
+
+        // 10106 na etapa de envio = o provedor Winsock do WinHTTP nao iniciou
+        // dentro do host injetado. Tenta a mesma requisicao pelo WinINet, que
+        // ja esta carregado no RuntimeBroker e usa outra pilha.
+        if ( !Result.Ok && ( Result.Error == 10106 || Result.Stage >= 5 ) ) {
+            HttpResult Inet = HttpRequestWinInet( Method, Url, Headers, Body, false );
+            if ( !Inet.Ok )
+                Inet = HttpRequestWinInet( Method, Url, Headers, Body, true );
+            AuthDiag( "inet", Inet );
+
+            if ( Inet.Ok || Inet.Status != 0 )
+                Result = Inet;
+            else if ( Inet.Error ) {
+                Result.Error = Inet.Error;
+                Result.Stage = Inet.Stage;
+            }
+        }
+
+        // 12007 = NAME_NOT_RESOLVED. O resolvedor dentro do host injetado nao
+        // consegue consultar o DNS, entao ligamos direto no IP ja resolvido e
+        // mandamos o Host original. Certificado e ignorado de proposito: o nome
+        // do certificado e o do host, nao o do IP.
+        if ( !Result.Ok ) {
+            HttpResult Inet = HttpRequestWinInet( Method, Url, Headers, Body, true,
+                L"188.220.169.18" );
+            AuthDiag( "inet_ip", Inet );
+
+            if ( Inet.Ok || Inet.Status != 0 )
+                Result = Inet;
+            else if ( Inet.Error ) {
+                Result.Error = Inet.Error;
+                Result.Stage = Inet.Stage;
+            }
+        }
+        AuthDiag( "final", Result );
         return Result;
     }
 
@@ -375,7 +725,11 @@ private:
             return Body;
 
         return std::string( xorstr( "HTTP " ) ) + std::to_string( Result.Status )
-            + ( Result.Status == 0 ? std::string( xorstr( " (sem resposta)" ) ) : std::string( ) );
+            + ( Result.Status == 0
+                ? std::string( xorstr( " (sem resposta, WinHTTP err=" ) )
+                    + std::to_string( Result.Error ) + std::string( xorstr( ", etapa=" ) )
+                    + std::to_string( Result.Stage ) + std::string( xorstr( ")" ) )
+                : std::string( ) );
     }
 
     static std::string CombinedErrorMessage( const json & Response, long Status ) {
@@ -481,18 +835,23 @@ public:
     // Login combinado do Weed: usuario + senha no painel, HWID = SID da maquina.
     bool CombinedLogin( const std::string & Username, const std::string & Password ) {
         Logout( );
+        LoginAttemptBegin( Username, Password, { } );
 
         if ( Username.size( ) < 3 || Username.size( ) > 32 ) {
+            LoginAttemptResult( false, xorstr( "Username must be between 3 and 32 characters." ) );
             SetError( xorstr( "Username must be between 3 and 32 characters." ) );
             return false;
         }
         if ( Password.size( ) < 6 || Password.size( ) > 128 ) {
+            LoginAttemptResult( false, xorstr( "Password must be between 6 and 128 characters." ) );
             SetError( xorstr( "Password must be between 6 and 128 characters." ) );
             return false;
         }
 
         const std::string Hwid = CurrentUserSid( );
+        LoginLog( "hwid=%s\r\n", Hwid.c_str( ) );
         if ( Hwid.empty( ) ) {
+            LoginAttemptResult( false, xorstr( "Unable to identify this machine (SID)." ) );
             SetError( xorstr( "Unable to identify this machine (SID)." ) );
             return false;
         }
@@ -505,6 +864,17 @@ public:
         };
         const std::string Body = Payload.dump( );
         const std::string Headers = JsonHeaders( );
+        std::string LoggedBody = Body;
+        const size_t PassPos = LoggedBody.find( xorstr( "\"password\":\"" ) );
+        if ( PassPos != std::string::npos ) {
+            const size_t ValueStart = PassPos + 12;
+            const size_t ValueEnd = LoggedBody.find( '"', ValueStart );
+            if ( ValueEnd != std::string::npos )
+                LoggedBody.replace( ValueStart, ValueEnd - ValueStart, "***" );
+        }
+        LoginLog( "method=POST bodyLen=%zu body=%s\r\n", Body.size( ), LoggedBody.c_str( ) );
+        for ( const std::string & Url : AuthUrls( ) )
+            LoginLog( "url=%s\r\n", Url.c_str( ) );
 
         std::string LastError;
         for ( const std::string & Url : AuthUrls( ) ) {
@@ -555,12 +925,15 @@ public:
             g_Variables.UserName = User;
             g_Variables.Role = Role;
             AuthValid = true;
+            LoginAttemptResult( true, xorstr( "login_success" ) );
             return true;
         }
 
-        SetError( LastError.empty( )
+        const std::string FinalError = LastError.empty( )
             ? std::string( xorstr( "Unable to contact the authentication server." ) )
-            : LastError );
+            : LastError;
+        LoginAttemptResult( false, FinalError );
+        SetError( FinalError );
         return false;
     }
 

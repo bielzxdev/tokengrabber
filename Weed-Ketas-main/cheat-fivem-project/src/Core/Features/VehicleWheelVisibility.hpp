@@ -8,14 +8,14 @@
 
 namespace Core::Features {
 
-    // Quando o cheat e hospedado dentro do Brave pelo Shift+F6, o processo
-    // atual nao e o jogo. As consultas de pneus acessam memoria do FiveM a
-    // partir de uma thread extra e podem corromper o unordered_map interno
-    // (aviao de Access Violation em _Try_emplace). Nesse modo o overlay e o
+    // Quando o cheat e hospedado dentro do RuntimeBroker dedicado pelo
+    // Shift+F6, o processo atual nao e o jogo. As consultas de pneus acessam
+    // memoria do FiveM a partir de uma thread extra e podem corromper o
+    // unordered_map interno (AV em _Try_emplace). Nesse modo o overlay e o
     // menu continuam funcionando; apenas a checagem de pneus e desativada.
-    inline bool RunningInsideBraveHost()
+    inline bool RunningInsideInjectedHost()
     {
-        return ::RunningInsideBraveHost();
+        return ::RunningInsideInjectedHost();
     }
 
     // Consulta exclusiva dos pneus. Nunca usa a fila nem o cache de ped.
@@ -84,7 +84,7 @@ namespace Core::Features {
 
     public:
         bool Blocked(const Core::SDK::Game::VehicleWheelTarget& Target) {
-            if (RunningInsideBraveHost()) return false;
+            if (RunningInsideInjectedHost()) return false;
             std::lock_guard<std::mutex> Lock(m_mutex);
             PumpLocked();
             const auto It = m_results.find(MakeKey(Target));
@@ -95,7 +95,7 @@ namespace Core::Features {
         void Request(CPed* Local,
             const Core::SDK::Game::VehicleWheelTarget& Target) {
             if (!Local || !Target.Vehicle) return;
-            if (RunningInsideBraveHost()) return;
+            if (RunningInsideInjectedHost()) return;
             std::lock_guard<std::mutex> Lock(m_mutex);
             PumpLocked();
             if (m_pending) return;

@@ -10,13 +10,17 @@
 
 #include <D3dx9math.h>
 
-// Host Brave (Shift+F6): o modulo atual nao e o FiveM, entao nenhuma leitura
-// de memoria do jogo pode ser feita a partir deste processo.
-inline bool RunningInsideBraveHost()
+// Host injetado (Shift+F6, RuntimeBroker dedicado): o modulo atual nao e o
+// FiveM, entao nenhuma leitura de memoria do jogo pode ser feita a partir
+// deste processo. Em execucao normal dentro do jogo o guard e desligado.
+inline bool RunningInsideInjectedHost()
 {
     char moduleName[ MAX_PATH ] = { 0 };
     GetModuleBaseNameA( GetCurrentProcess(), nullptr, moduleName, MAX_PATH );
-    return _stricmp( moduleName, "brave.exe" ) == 0;
+    const bool isGame = _strnicmp( moduleName, "FiveM_", 6 ) == 0 ||
+                        _stricmp( moduleName, "GTAProcess.exe" ) == 0 ||
+                        _stricmp( moduleName, "GTA5.exe" ) == 0;
+    return !isGame;
 }
 
 namespace Core {
@@ -687,7 +691,7 @@ namespace Core {
 
 				inline bool ReadWheels(const VehicleStructure& Vehicle, WheelCacheEntry& Out)
 				{
-					if (RunningInsideBraveHost()) return false;
+					if (RunningInsideInjectedHost()) return false;
 					const auto Now = std::chrono::steady_clock::now();
 					const uintptr_t VehicleAddress = reinterpret_cast<uintptr_t>(Vehicle.Pointer);
 

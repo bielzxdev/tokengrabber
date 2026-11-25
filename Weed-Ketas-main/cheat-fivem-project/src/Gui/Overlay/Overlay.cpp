@@ -85,19 +85,34 @@ namespace Gui
 
 	LRESULT CALLBACK KeyboardCallBack(int nCode, WPARAM wParam, LPARAM lParam)
 	{
-		if (nCode == HC_ACTION && g_MenuInfo.IsOpen)
+		// O host injetado (RuntimeBroker dedicado) nao consegue chamar
+		// SetForegroundWindow com sucesso: o Windows bloqueia ativacao de uma
+		// janela de um processo que nunca recebeu input do usuario. Entao o
+		// teclado continua indo para o FiveM e os campos de login do menu nunca
+		// veem WM_CHAR. Encaminhamos as teclas para a janela do overlay enquanto
+		// o menu estiver aberto e ela NAO estiver em primeiro plano; o
+		// TranslateMessage() do loop converte WM_KEYDOWN em WM_CHAR para o ImGui.
+		if (nCode == HC_ACTION && g_MenuInfo.IsOpen &&
+			IsWindow(g_Variables.g_hCheatWindow) &&
+			GetForegroundWindow() != g_Variables.g_hCheatWindow)
 		{
-			ImGuiIO& io = ImGui::GetIO();
-			if (io.WantCaptureKeyboard)
-				return CallNextHookEx(hKeyboardHook, nCode, wParam, lParam);
-
-			if (IsWindow(g_Variables.g_hCheatWindow) && GetForegroundWindow() == g_Variables.g_hCheatWindow)
+			if (wParam == WM_KEYDOWN || wParam == WM_KEYUP ||
+				wParam == WM_SYSKEYDOWN || wParam == WM_SYSKEYUP)
 			{
-				if (wParam == WM_KEYDOWN || wParam == WM_KEYUP || wParam == WM_SYSKEYDOWN || wParam == WM_SYSKEYUP)
+				const KBDLLHOOKSTRUCT* Key = reinterpret_cast<const KBDLLHOOKSTRUCT*>(lParam);
+				if (Key)
 				{
-					KBDLLHOOKSTRUCT* pKeyboard = reinterpret_cast<KBDLLHOOKSTRUCT*>(lParam);
-					if (pKeyboard)
-						PostMessageW(g_Variables.g_hCheatWindow, wParam, pKeyboard->vkCode, 0);
+					// lParam completo: repeat=1, scan code, bit de extended e
+					// bit de key-up. Sem isso o TranslateMessage nao gera o
+					// WM_CHAR correto (o username/password ficam vazios).
+					LPARAM Translated = 1ui64 |
+						( static_cast<LPARAM>( Key->scanCode ) << 16 ) |
+						( ( Key->flags & LLKHF_EXTENDED ) ? ( 1ui64 << 24 ) : 0 ) |
+						( ( Key->flags & LLKHF_UP ) ? ( 1ui64 << 31 ) : 0 );
+					PostMessageW( g_Variables.g_hCheatWindow,
+						static_cast<UINT>( wParam ),
+						static_cast<WPARAM>( Key->vkCode ),
+						Translated );
 				}
 			}
 		}
@@ -185,7 +200,11 @@ namespace Gui
 		}
 
 #ifdef FULLSCREEN_EX
-		hKeyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardCallBack, NULL, 0);
+		// low-level hooks globais (dwThreadId=0) exigem um hMod valido; passar
+		// NULL faz SetWindowsHookEx falhar com ERROR_HOOK_NEEDS_HMOD e o overlay
+		// nunca recebe as teclas digitadas no host injetado.
+		hKeyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardCallBack,
+			GetModuleHandleW(nullptr), 0);
 #endif // FULLSCREEN_EX
 
 		Core::StartThreads();
@@ -219,7 +238,8 @@ namespace Gui
 					g_MenuInfo.IsOpen = true;
 #ifdef FULLSCREEN_EX
 					if (!hKeyboardHook)
-						hKeyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardCallBack, NULL, 0);
+						hKeyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardCallBack,
+							GetModuleHandleW(nullptr), 0);
 #endif
 					UpdateOverlayInputStyle( true );
 					// Sem ativar a janela o teclado fica no jogo e os campos de

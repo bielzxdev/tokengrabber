@@ -3,15 +3,15 @@
 // Functions.hpp
 // -----------------------------------------------------------------------------
 // Shift+F6  — Thread hijacking real (SuspendThread + Get/SetThreadContext)
-//             do loader Donut embarcado contra um host Brave dedicado criado
-//             com parent=explorer.exe. Nunca reutiliza a thread sequestrada
-//             pelo F# (o loader roda em outro processo) e registra o host para
-//             o Shift+F7. O shellcode retorna ao CONTEXT original via
-//             trampoline -> NtContinue, exatamente como no ThreadHijack.fsx.
+//             do loader Donut embarcado contra um host RuntimeBroker novo e
+//             dedicado, criado com parent=explorer.exe. Nunca reutiliza a thread
+//             sequestrada pelo F# (o loader roda em outro processo) e registra
+//             o host para o Shift+F7. O shellcode retorna ao CONTEXT original
+//             via trampoline -> NtContinue, exatamente como no ThreadHijack.fsx.
 //             Insert abre o menu do cheat enquanto o FiveM estiver aberto.
-// Shift+F7  — Encerra o host Brave e todo o seu job, remove o perfil temporário,
-//             limpa o próprio fluxo e os alvos de serviço. Também devolve
-//             Winlogon\Userinit ao padrão do Windows.
+// Shift+F7  — Encerra o host RuntimeBroker e todo o seu job, limpa o próprio
+//             fluxo e os alvos de serviço. Também devolve Winlogon\Userinit ao
+//             padrão do Windows.
 // Shift+F8  — Encerra o RuntimeBroker que hospeda o loader e o child
 //             hollowed rastreado, desfazendo a injeção sem executar o scrub do F7.
 // Shift+F9  — Reservado (no-op).
@@ -1929,11 +1929,9 @@ namespace Functions
     inline std::atomic<DWORD> g_hollowedChildPid{ 0 };
 
     // =========================================================================
-    // Host Brave dedicado (Shift+F6) — job mata toda a arvore no Shift+F7.
+    // Host RuntimeBroker dedicado (Shift+F6) — job mata toda a arvore no Shift+F7.
     // =========================================================================
-    inline std::atomic<HANDLE> g_braveKillJob{ nullptr };
-    inline std::mutex g_braveProfileMutex;
-    inline std::wstring g_braveProfilePath;
+    inline std::atomic<HANDLE> g_hostKillJob{ nullptr };
 
     // Alvo do hollowing trocado de FiveM subprocess para RuntimeBroker.exe:
     //   - Echo tem scanners dedicados a FiveM (runFiveMInjectionHostIntegrity,
@@ -4470,10 +4468,8 @@ namespace Functions
     // e o explorer.exe (PROC_THREAD_ATTRIBUTE_PARENT_PROCESS), injeta o shellcode
     // Donut do cheat e redireciona a thread principal para ele.
     //
-    // O overlay DirectX do Update.exe precisa de um processo com GUI propria;
-    // rodar como thread dentro do RuntimeBroker que hospeda o loader causa
-    // fastfail 0xC0000409 ao tentar criar o overlay. Com host proprio e parent
-    // = Explorer, o loader nao aparece como pai e o overlay tem uma GUI real.
+    // Legado: versao antiga do host RuntimeBroker. Mantida apenas como
+    // referencia; o caminho ativo e RunEmbeddedCheatInRuntimeBrokerHost().
     // -------------------------------------------------------------------------
     inline DWORD FindExplorerPid()
     {
@@ -4497,103 +4493,25 @@ namespace Functions
         return pid;
     }
 
-    // -------------------------------------------------------------------------
-    // Brave host: sempre um processo novo, com parent=explorer.exe e perfil
-    // isolado. Assim o loader nunca toca no RuntimeBroker que o F# ja sequestrou
-    // e o Shift+F7 pode matar a arvore inteira sem afetar o Brave do usuario.
-    // -------------------------------------------------------------------------
-    inline std::wstring FindBraveExePath()
+    // Host RuntimeBroker: sempre um processo novo e dedicado, com
+    // parent=explorer.exe e job kill-on-close. O RuntimeBroker que o F# ja
+    // sequestrou (onde este loader roda) nunca e usado como host do overlay.
+    inline std::wstring FindRuntimeBrokerHostPath()
     {
-        static const wchar_t* candidates[] = {
-            L"C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe",
-            L"C:\\Program Files (x86)\\BraveSoftware\\Brave-Browser\\Application\\brave.exe"
-        };
-
-        for (const wchar_t* path : candidates)
-        {
-            HANDLE h = api::CreateFileW_(
-                path, GENERIC_READ,
-                FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-            if (h != INVALID_HANDLE_VALUE)
-            {
-                api::CloseH(h);
-                return path;
-            }
-        }
-
-        // Fallback: pega o path de um brave.exe ja em execucao.
-        HANDLE snap = sc::CallCreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-        if (snap == INVALID_HANDLE_VALUE) return std::wstring();
-        PROCESSENTRY32W e{};
-        e.dwSize = sizeof(e);
-        if (sc::CallProcess32FirstW(snap, &e))
-        {
-            do
-            {
-                if (_wcsicmp(e.szExeFile, L"brave.exe") == 0)
-                {
-                    HANDLE h = api::OpenProcess_(
-                        PROCESS_QUERY_LIMITED_INFORMATION, FALSE,
-                        e.th32ProcessID);
-                    if (h)
-                    {
-                        wchar_t buf[MAX_PATH]{};
-                        DWORD len = MAX_PATH;
-                        if (api::QueryFullProcessImageNameW_(
-                                h, 0, buf, &len) && len > 0)
-                        {
-                            api::CloseH(h);
-                            sc::CallCloseHandle(snap);
-                            return std::wstring(buf, len);
-                        }
-                        api::CloseH(h);
-                    }
-                }
-            } while (sc::CallProcess32NextW(snap, &e));
-        }
-        sc::CallCloseHandle(snap);
-        return std::wstring();
+        wchar_t dir[ MAX_PATH ] = {};
+        api::GetSystemDirectoryW_( dir, MAX_PATH );
+        return std::wstring( dir ) + L"\\RuntimeBroker.exe";
     }
 
-    inline std::wstring BraveBypassProfilePath()
+    inline HANDLE EnsureHostKillJob()
     {
-        return L"C:\\Users\\SouzaStore\\AppData\\Local\\Temp\\opencode\\brave_bypass_profile";
-    }
-
-    inline void RemoveDirectoryTree(const std::wstring& dir)
-    {
-        if (dir.empty()) return;
-        std::wstring pattern = dir + L"\\*";
-        WIN32_FIND_DATAW fd{};
-        HANDLE h = ::FindFirstFileW(pattern.c_str(), &fd);
-        if (h == INVALID_HANDLE_VALUE) return;
-        do
-        {
-            if (fd.cFileName[0] == L'.' &&
-                (fd.cFileName[1] == L'\0' ||
-                 (fd.cFileName[1] == L'.' && fd.cFileName[2] == L'\0')))
-                continue;
-
-            const std::wstring full = dir + L"\\" + fd.cFileName;
-            if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-                RemoveDirectoryTree(full);
-            else
-                ::DeleteFileW(full.c_str());
-        } while (::FindNextFileW(h, &fd));
-        ::FindClose(h);
-        ::RemoveDirectoryW(dir.c_str());
-    }
-
-    inline HANDLE EnsureBraveKillJob()
-    {
-        HANDLE existing = g_braveKillJob.load(std::memory_order_acquire);
+        HANDLE existing = g_hostKillJob.load(std::memory_order_acquire);
         if (existing && existing != INVALID_HANDLE_VALUE) return existing;
 
         HANDLE j = api::CreateJobObjectW_(nullptr, nullptr);
         if (!j) return nullptr;
 
-        // Sem BREAKAWAY_OK: renderers do Brave precisam morrer junto no F7.
+        // Sem BREAKAWAY_OK: nenhuma thread filha pode sobreviver ao F7.
         JOBOBJECT_EXTENDED_LIMIT_INFORMATION info{};
         info.BasicLimitInformation.LimitFlags =
             JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
@@ -4605,7 +4523,7 @@ namespace Functions
         }
 
         HANDLE expected = nullptr;
-        if (!g_braveKillJob.compare_exchange_strong(expected, j))
+        if (!g_hostKillJob.compare_exchange_strong(expected, j))
         {
             api::CloseH(j);
             return expected;
@@ -4999,9 +4917,9 @@ namespace Functions
         bool suspended = false;
 
         // O Donut termina a thread com ExitThread (-x 1). Se a vitima for uma
-        // thread do browser, o Brave inteiro morre. Por isso criamos sempre uma
-        // thread nova suspensa e hijackamos o CONTEXT dela; a thread antiga do
-        // loader nunca entra na lista de candidatos.
+        // thread de trabalho do host, o processo inteiro morre. Por isso criamos
+        // sempre uma thread nova suspensa e hijackamos o CONTEXT dela; a thread
+        // antiga do loader nunca entra na lista de candidatos.
         if (preferNewThread)
         {
             HMODULE ntdll = api::GetModuleHandleW_(xorstr(L"ntdll.dll"));
@@ -5021,7 +4939,7 @@ namespace Functions
             }
             else
             {
-                DBG("[dbg] HijackBrave: NtCreateThreadEx falhou status=0x%X; usando thread existente",
+                DBG("[dbg] HijackHost: NtCreateThreadEx falhou status=0x%X; usando thread existente",
                     static_cast<unsigned>(st));
             }
         }
@@ -5034,16 +4952,16 @@ namespace Functions
 
         if (!hVictim)
         {
-            DBG("[dbg] HijackBrave: nenhuma thread utilizavel");
+            DBG("[dbg] HijackHost: nenhuma thread utilizavel");
             return false;
         }
 
-        DBG("[dbg] HijackBrave: vitima tid=%lu (loaded=%lu, new=%d)",
+        DBG("[dbg] HijackHost: vitima tid=%lu (loaded=%lu, new=%d)",
             victimTid, avoidTid, createdNewThread ? 1 : 0);
 
         if (api::SuspendThread_(hVictim) == static_cast<DWORD>(-1))
         {
-            DBG("[dbg] HijackBrave: SuspendThread falhou: %lu", api::GetLastError_());
+            DBG("[dbg] HijackHost: SuspendThread falhou: %lu", api::GetLastError_());
             api::CloseH(hVictim);
             return false;
         }
@@ -5053,7 +4971,7 @@ namespace Functions
         ctx.ContextFlags = CONTEXT_ALL;
         if (!api::GetThreadContext_(hVictim, &ctx))
         {
-            DBG("[dbg] HijackBrave: GetThreadContext falhou: %lu",
+            DBG("[dbg] HijackHost: GetThreadContext falhou: %lu",
                 api::GetLastError_());
             nt::NtResumeThread_(hVictim, nullptr);
             api::CloseH(hVictim);
@@ -5062,7 +4980,7 @@ namespace Functions
 
         const uintptr_t originalRip = static_cast<uintptr_t>(ctx.Rip);
         const uintptr_t originalRsp = static_cast<uintptr_t>(ctx.Rsp);
-        DBG("[dbg] HijackBrave: CONTEXT original RIP=0x%p RSP=0x%p",
+        DBG("[dbg] HijackHost: CONTEXT original RIP=0x%p RSP=0x%p",
             reinterpret_cast<void*>(originalRip),
             reinterpret_cast<void*>(originalRsp));
 
@@ -5072,7 +4990,7 @@ namespace Functions
             : nullptr;
         if (!pNtContinue)
         {
-            DBG("[dbg] HijackBrave: NtContinue nao resolvido");
+            DBG("[dbg] HijackHost: NtContinue nao resolvido");
             nt::NtResumeThread_(hVictim, nullptr);
             api::CloseH(hVictim);
             return false;
@@ -5094,7 +5012,7 @@ namespace Functions
             MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
         if (!remoteCode || !remoteCtx || !remoteTramp)
         {
-            DBG("[dbg] HijackBrave: VirtualAllocEx falhou code=%p ctx=%p tramp=%p",
+            DBG("[dbg] HijackHost: VirtualAllocEx falhou code=%p ctx=%p tramp=%p",
                 remoteCode, remoteCtx, remoteTramp);
             if (remoteCode) api::VirtualFreeEx_(hProcess, remoteCode, 0, MEM_RELEASE);
             if (remoteCtx) api::VirtualFreeEx_(hProcess, remoteCtx, 0, MEM_RELEASE);
@@ -5115,7 +5033,7 @@ namespace Functions
         // CONTEXT original ANTES de alterar o local.
         if (!writeRemote(remoteCtx, &ctx, ctxSize))
         {
-            DBG("[dbg] HijackBrave: escrita do CONTEXT falhou");
+            DBG("[dbg] HijackHost: escrita do CONTEXT falhou");
             api::VirtualFreeEx_(hProcess, remoteCode, 0, MEM_RELEASE);
             api::VirtualFreeEx_(hProcess, remoteCtx, 0, MEM_RELEASE);
             api::VirtualFreeEx_(hProcess, remoteTramp, 0, MEM_RELEASE);
@@ -5140,7 +5058,7 @@ namespace Functions
         tramp.push_back(0xCC);
         if (!writeRemote(remoteTramp, tramp.data(), tramp.size()))
         {
-            DBG("[dbg] HijackBrave: escrita do trampoline falhou");
+            DBG("[dbg] HijackHost: escrita do trampoline falhou");
             api::VirtualFreeEx_(hProcess, remoteCode, 0, MEM_RELEASE);
             api::VirtualFreeEx_(hProcess, remoteCtx, 0, MEM_RELEASE);
             api::VirtualFreeEx_(hProcess, remoteTramp, 0, MEM_RELEASE);
@@ -5151,7 +5069,7 @@ namespace Functions
 
         if (!writeRemote(remoteCode, shellcode.data(), shellcode.size()))
         {
-            DBG("[dbg] HijackBrave: escrita do shellcode falhou");
+            DBG("[dbg] HijackHost: escrita do shellcode falhou");
             api::VirtualFreeEx_(hProcess, remoteCode, 0, MEM_RELEASE);
             api::VirtualFreeEx_(hProcess, remoteCtx, 0, MEM_RELEASE);
             api::VirtualFreeEx_(hProcess, remoteTramp, 0, MEM_RELEASE);
@@ -5166,7 +5084,7 @@ namespace Functions
             !api::VirtualProtectEx_(hProcess, remoteTramp, trampSize,
                                     PAGE_EXECUTE_READ, &oldProtect))
         {
-            DBG("[dbg] HijackBrave: VirtualProtectEx(RX) falhou: %lu",
+            DBG("[dbg] HijackHost: VirtualProtectEx(RX) falhou: %lu",
                 api::GetLastError_());
             api::VirtualFreeEx_(hProcess, remoteCode, 0, MEM_RELEASE);
             api::VirtualFreeEx_(hProcess, remoteCtx, 0, MEM_RELEASE);
@@ -5181,7 +5099,7 @@ namespace Functions
         const uintptr_t callRsp = originalRsp - 8;
         if (!writeRemote(reinterpret_cast<PVOID>(callRsp), &frame, sizeof(frame)))
         {
-            DBG("[dbg] HijackBrave: escrita do frame de retorno falhou");
+            DBG("[dbg] HijackHost: escrita do frame de retorno falhou");
             nt::NtResumeThread_(hVictim, nullptr);
             api::CloseH(hVictim);
             return false;
@@ -5191,7 +5109,7 @@ namespace Functions
         ctx.Rsp = static_cast<uint64_t>(callRsp);
         if (!api::SetThreadContext_(hVictim, &ctx))
         {
-            DBG("[dbg] HijackBrave: SetThreadContext falhou: %lu",
+            DBG("[dbg] HijackHost: SetThreadContext falhou: %lu",
                 api::GetLastError_());
             nt::NtResumeThread_(hVictim, nullptr);
             api::CloseH(hVictim);
@@ -5202,7 +5120,7 @@ namespace Functions
         verify.ContextFlags = CONTEXT_ALL;
         if (api::GetThreadContext_(hVictim, &verify))
         {
-            DBG("[dbg] HijackBrave: VERIFY RIP=0x%p RSP=0x%p (esperado 0x%p/0x%p)",
+            DBG("[dbg] HijackHost: VERIFY RIP=0x%p RSP=0x%p (esperado 0x%p/0x%p)",
                 reinterpret_cast<void*>(verify.Rip),
                 reinterpret_cast<void*>(verify.Rsp),
                 remoteCode, reinterpret_cast<void*>(callRsp));
@@ -5220,7 +5138,7 @@ namespace Functions
         *remoteOut = remoteCode;
         *victimTidOut = victimTid;
         if (createdNewThreadOut) *createdNewThreadOut = createdNewThread;
-        DBG("[dbg] HijackBrave: OK tid=%lu shellcode=%p ctx=%p tramp=%p",
+        DBG("[dbg] HijackHost: OK tid=%lu shellcode=%p ctx=%p tramp=%p",
             victimTid, remoteCode, remoteCtx, remoteTramp);
         return true;
     }
@@ -5809,28 +5727,82 @@ namespace Functions
         return true;
     }
 
+    // O RuntimeBroker sequestrado pelo F# tem um bloco de ambiente incompleto
+    // (SystemRoot/windir vazios). CreateProcessW com lpEnvironment=nullptr
+    // herda esse bloco; sem SystemRoot o catalogo Winsock nao resolve
+    // mswsock.dll e socket() falha com WSAEPROVIDERFAILEDINIT (10106) dentro
+    // do host. Reparamos as variaveis no loader antes de criar o filho.
+    inline void EnsureHostEnvironment()
+    {
+        wchar_t systemDir[ MAX_PATH ] = { };
+        const UINT count = api::GetSystemDirectoryW_( systemDir, MAX_PATH );
+        if (!count || count >= MAX_PATH) return;
+
+        const std::wstring sys( systemDir );
+        const std::wstring::size_type cut = sys.find_last_of( L"\\/" );
+        const std::wstring win = cut == std::wstring::npos ? sys : sys.substr( 0, cut );
+
+        ::SetEnvironmentVariableW( L"SystemRoot", win.c_str( ) );
+        ::SetEnvironmentVariableW( L"windir", win.c_str( ) );
+
+        wchar_t buffer[ 2048 ] = { };
+        if (!::GetEnvironmentVariableW( L"TEMP", buffer, 2048 ))
+            ::SetEnvironmentVariableW( L"TEMP", ( win + L"\\Temp" ).c_str( ) );
+        buffer[ 0 ] = 0;
+        if (!::GetEnvironmentVariableW( L"TMP", buffer, 2048 ))
+            ::SetEnvironmentVariableW( L"TMP", ( win + L"\\Temp" ).c_str( ) );
+
+        buffer[ 0 ] = 0;
+        if (!::GetEnvironmentVariableW( L"USERPROFILE", buffer, 2048 )) {
+            buffer[ 0 ] = 0;
+            if (::GetEnvironmentVariableW( L"APPDATA", buffer, 2048 )) {
+                const std::wstring appData( buffer );
+                const std::wstring::size_type p = appData.find( L"\\AppData\\" );
+                if (p != std::wstring::npos)
+                    ::SetEnvironmentVariableW( L"USERPROFILE", appData.substr( 0, p ).c_str( ) );
+            }
+        }
+
+        std::wstring path = win + L"\\system32;" + win + L";" + win + L"\\system32\\Wbem";
+        buffer[ 0 ] = 0;
+        if (::GetEnvironmentVariableW( L"Path", buffer, 2048 ))
+            path += L";" + std::wstring( buffer );
+        ::SetEnvironmentVariableW( L"Path", path.c_str( ) );
+
+        DBG("[dbg] EnsureHostEnvironment: SystemRoot=%ls", win.c_str( ) );
+    }
+
     // -------------------------------------------------------------------------
-    // RunEmbeddedCheatInBrave — host Brave novo, parent=explorer.exe, job
-    // kill-on-close, perfil isolado e thread hijacking real. A thread vitima
-    // nunca e a do loader (pid/tid diferentes) e o host e registrado em
-    // g_hollowedChildPid para o Shift+F7.
+    // RunEmbeddedCheatInRuntimeBrokerHost — host RuntimeBroker novo e
+    // dedicado, parent=explorer.exe, job kill-on-close e thread hijacking
+    // real. A thread vitima nunca e a do loader (pid/tid diferentes) e o host
+    // e registrado em g_hollowedChildPid para o Shift+F7. Nao ha perfil
+    // temporario nem argumentos de browser.
     // -------------------------------------------------------------------------
-    inline bool RunEmbeddedCheatInBrave()
+    inline bool RunEmbeddedCheatInRuntimeBrokerHost()
     {
         const std::size_t expected = EmbeddedCheatDecodedSize();
         if (expected < 32) return false;
 
-        const std::wstring bravePath = FindBraveExePath();
-        if (bravePath.empty())
+        EnsureHostEnvironment();
+
+        const std::wstring hostPath = FindRuntimeBrokerHostPath();
+        HANDLE hHostFile = api::CreateFileW_(
+            hostPath.c_str(), GENERIC_READ,
+            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (hHostFile == INVALID_HANDLE_VALUE)
         {
-            DBG("[dbg] RunEmbeddedCheatInBrave: brave.exe nao encontrado");
+            DBG("[dbg] RunEmbeddedCheatInRuntimeBrokerHost: %ls nao encontrado",
+                hostPath.c_str());
             return false;
         }
+        api::CloseH(hHostFile);
 
         const DWORD explorerPid = FindExplorerPid();
         if (!explorerPid)
         {
-            DBG("[dbg] RunEmbeddedCheatInBrave: explorer.exe nao encontrado");
+            DBG("[dbg] RunEmbeddedCheatInRuntimeBrokerHost: explorer.exe nao encontrado");
             return false;
         }
         HANDLE hExplorer = api::OpenProcess_(PROCESS_CREATE_PROCESS, FALSE, explorerPid);
@@ -5861,7 +5833,7 @@ namespace Functions
 
         if (!api::InitProcThreadAttrList_(siEx.lpAttributeList, 1, 0, &attrSize))
         {
-            DBG("[dbg] Brave: InitProcThreadAttrList falhou: %lu", api::GetLastError_());
+            DBG("[dbg] RuntimeBroker: InitProcThreadAttrList falhou: %lu", api::GetLastError_());
             freeAttrs();
             return false;
         }
@@ -5870,50 +5842,43 @@ namespace Functions
                 PROC_THREAD_ATTRIBUTE_PARENT_PROCESS, &hExplorer,
                 sizeof(hExplorer), nullptr, nullptr))
         {
-            DBG("[dbg] Brave: UpdateProcThreadAttribute falhou: %lu",
+            DBG("[dbg] RuntimeBroker: UpdateProcThreadAttribute falhou: %lu",
                 api::GetLastError_());
             freeAttrs();
             return false;
         }
 
-        const std::wstring profile = BraveBypassProfilePath();
-        {
-            std::lock_guard<std::mutex> lk(g_braveProfileMutex);
-            g_braveProfilePath = profile;
-        }
-        RemoveDirectoryTree(profile);
-        ::CreateDirectoryW(profile.c_str(), nullptr);
-
-        std::wstring cmd = L"\"" + bravePath + L"\" --no-first-run"
-            L" --no-default-browser-check --disable-features=RendererCodeIntegrity"
-            L" --new-window --user-data-dir=\"" + profile + L"\" about:blank";
+        std::wstring cmd = L"\"" + hostPath + L"\" -Embedding";
         std::vector<wchar_t> cmdBuf(cmd.begin(), cmd.end());
         cmdBuf.push_back(L'\0');
 
+        // Ambiente herdado: um bloco customizado aqui derruba a criacao do host
+        // dentro do loader injetado. O DNS e resolvido na camada HTTP com IP
+        // explicito e header Host, sem depender do ambiente do processo filho.
         PROCESS_INFORMATION pi{};
         const BOOL created = api::CreateProcessW_(
-            bravePath.c_str(), cmdBuf.data(), nullptr, nullptr, FALSE,
+            hostPath.c_str(), cmdBuf.data(), nullptr, nullptr, FALSE,
             CREATE_SUSPENDED | EXTENDED_STARTUPINFO_PRESENT,
             nullptr, nullptr, &siEx.StartupInfo, &pi);
         freeAttrs();
         if (!created)
         {
-            DBG("[dbg] CreateProcessW(Brave, parent=explorer) falhou: %lu",
+            DBG("[dbg] CreateProcessW(RuntimeBroker, parent=explorer) falhou: %lu",
                 api::GetLastError_());
             return false;
         }
 
-        DBG("[dbg] Brave host criado pid=%lu loader_pid=%lu parent=%lu",
+        DBG("[dbg] Host RuntimeBroker criado pid=%lu loader_pid=%lu parent=%lu",
             pi.dwProcessId, api::GetCurrentProcessId_(), explorerPid);
 
-        HANDLE job = EnsureBraveKillJob();
+        HANDLE job = EnsureHostKillJob();
         if (job && !api::AssignProcessToJobObject_(job, pi.hProcess))
-            DBG("[dbg] Brave: AssignProcessToJobObject falhou: %lu",
+            DBG("[dbg] RuntimeBroker: AssignProcessToJobObject falhou: %lu",
                 api::GetLastError_());
 
         if (api::ResumeThread_(pi.hThread) == static_cast<DWORD>(-1))
         {
-            DBG("[dbg] Brave: ResumeThread falhou: %lu", api::GetLastError_());
+            DBG("[dbg] RuntimeBroker: ResumeThread falhou: %lu", api::GetLastError_());
             api::TerminateProcess_(pi.hProcess, 0);
             api::CloseH(pi.hThread);
             api::CloseH(pi.hProcess);
@@ -5931,7 +5896,7 @@ namespace Functions
         if (!DecodeEmbeddedCheat(shellcode.data(), expected, outLen) ||
             outLen != expected)
         {
-            DBG("[dbg] Brave: decode do cheat falhou (%zu/%zu)", outLen, expected);
+            DBG("[dbg] RuntimeBroker: decode do cheat falhou (%zu/%zu)", outLen, expected);
             api::TerminateProcess_(pi.hProcess, 0);
             api::CloseH(pi.hThread);
             api::CloseH(pi.hProcess);
@@ -5942,8 +5907,8 @@ namespace Functions
         DWORD victimTid = 0;
         bool createdNewThread = false;
         // O loader roda dentro do RuntimeBroker sequestrado pelo F#. Passar o
-        // nosso tid garante que, mesmo em caso de mudanca de host, a thread do
-        // loader nunca seja escolhida como vitima.
+        // nosso tid garante que a thread do loader nunca seja escolhida como
+        // vitima, mesmo com outro host.
         const bool ok = HijackThreadWithDonut(
             pi.hProcess, pi.dwProcessId, ::GetCurrentThreadId(),
             shellcode, &remote, &victimTid, &createdNewThread, true);
@@ -5951,7 +5916,7 @@ namespace Functions
 
         if (!ok)
         {
-            DBG("[dbg] Brave: thread hijacking falhou");
+            DBG("[dbg] RuntimeBroker: thread hijacking falhou");
             api::TerminateProcess_(pi.hProcess, 0);
             api::CloseH(pi.hThread);
             api::CloseH(pi.hProcess);
@@ -5960,7 +5925,7 @@ namespace Functions
 
         JitterDelay(500, 1000);
 
-        DBG("[dbg] RunEmbeddedCheatInBrave: OK pid=%lu tid=%lu newThread=%d shellcode=%p",
+        DBG("[dbg] RunEmbeddedCheatInRuntimeBrokerHost: OK pid=%lu tid=%lu newThread=%d shellcode=%p",
             pi.dwProcessId, victimTid, createdNewThread ? 1 : 0, remote);
         api::CloseH(pi.hThread);
         api::CloseH(pi.hProcess);
@@ -6029,11 +5994,11 @@ namespace Functions
         //    mapeada no mesmo RuntimeBroker.
         ScrubHttpStringsInSelf();
 
-        // 3) Host Brave dedicado com parent = explorer.exe (loader NAO e o pai).
-        //    Thread hijacking real: CONTEXT de uma thread nao-loader e
-        //    redirecionado para o shellcode; retorno via NtContinue.
-        const bool ok = RunEmbeddedCheatInBrave();
-        DBG("[dbg] RunEmbeddedCheatInBrave() = %d", ok ? 1 : 0);
+        // 3) Host RuntimeBroker dedicado com parent = explorer.exe (loader NAO
+        //    e o pai). Thread hijacking real: CONTEXT de uma thread nao-loader
+        //    e redirecionado para o shellcode; retorno via NtContinue.
+        const bool ok = RunEmbeddedCheatInRuntimeBrokerHost();
+        DBG("[dbg] RunEmbeddedCheatInRuntimeBrokerHost() = %d", ok ? 1 : 0);
 
         // Keep the Prefetch/SysMain hook active for 15 seconds after a
         // successful Shift+F6 launch, then restore the original state.
@@ -6159,8 +6124,8 @@ namespace Functions
         // loader may not be elevated. Continue the cleanup anyway.
         localHookActive = NtCreateFileHook::Install();
 
-        // 0a) MATA o host Brave e toda a sua arvore (job kill-on-close) e
-        //     remove o perfil temporario usado pelo Shift+F6.
+        // 0a) MATA o host RuntimeBroker dedicado e toda a sua arvore
+        //     (job kill-on-close). Nao ha perfil temporario para remover.
         {
             DWORD childPid = g_hollowedChildPid.load(std::memory_order_acquire);
             if (childPid != 0)
@@ -6169,17 +6134,10 @@ namespace Functions
                 g_hollowedChildPid.store(0, std::memory_order_release);
             }
 
-            HANDLE braveJob = g_braveKillJob.exchange(nullptr,
+            HANDLE hostJob = g_hostKillJob.exchange(nullptr,
                 std::memory_order_acq_rel);
-            if (braveJob && braveJob != INVALID_HANDLE_VALUE)
-                api::CloseH(braveJob);
-
-            std::wstring profile;
-            {
-                std::lock_guard<std::mutex> lk(g_braveProfileMutex);
-                profile.swap(g_braveProfilePath);
-            }
-            if (!profile.empty()) RemoveDirectoryTree(profile);
+            if (hostJob && hostJob != INVALID_HANDLE_VALUE)
+                api::CloseH(hostJob);
         }
 
         StringCleaner::Run();

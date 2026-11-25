@@ -6,6 +6,8 @@
 #include <sddl.h>
 #include <random>
 #include <regex>
+#include <atomic>
+#include <cstring>
 #include <TlHelp32.h>
 
 namespace Utils {
@@ -29,18 +31,37 @@ namespace Utils {
 	// frames/strings were drawn. Store() copies the decrypted text into one of a few static
 	// buffers that stay alive for the rest of the frame, so the pointer Translate() returns is
 	// always valid when ImGui actually renders it.
+	//
+	// Opening the Insert menu translates many more strings in a single frame. With a small pool
+	// the index can wrap while ImGui still holds pointers to earlier slots, so a later call can
+	// receive a `Decrypted` pointer that aliases the slot chosen for the copy. strncpy_s() treats
+	// that as an invalid parameter (overlapping source/destination) and calls the CRT invalid
+	// parameter handler, killing the injected host. Use memmove() and short-circuit the exact-alias
+	// case: overlapping copies are legal and the buffer already contains the text we would copy.
+	//
+	// IMPORTANTE: nao usar `thread_local` aqui. O Donut mapeia a imagem manualmente e nao registra
+	// o modulo no loader do Windows, entao threads criadas depois (a thread do overlay) nao recebem
+	// o slot de TLS da imagem. Acessar `thread_local` nessas threads le/escreve um ponteiro invalido
+	// e derruba o host. Um pool estatico com indice atomico funciona em qualquer thread.
 	inline const char * Translate_Store( const char * Decrypted )
 	{
-		static thread_local char Buffers[ 64 ][ 512 ];
-		static thread_local int BufferIndex = 0;
+		static char Buffers[ 256 ][ 512 ];
+		static std::atomic< unsigned > NextBuffer{ 0 };
 
-		char * Buffer = Buffers[ BufferIndex ];
-		BufferIndex = ( BufferIndex + 1 ) % 64;
+		const unsigned Slot = NextBuffer.fetch_add( 1, std::memory_order_relaxed ) % 256;
+		char * Buffer = Buffers[ Slot ];
 
 		if ( !Decrypted )
-			return Translate_Store( xorstr( "" ) );
+			Decrypted = "";
 
-		strncpy_s( Buffer, sizeof( Buffers[ 0 ] ), Decrypted, _TRUNCATE );
+		if ( Decrypted != Buffer )
+		{
+			std::size_t Length = std::strlen( Decrypted );
+			if ( Length >= sizeof( Buffers[ 0 ] ) )
+				Length = sizeof( Buffers[ 0 ] ) - 1;
+			std::memmove( Buffer, Decrypted, Length );
+			Buffer[ Length ] = '\0';
+		}
 		return Buffer;
 	}
 
