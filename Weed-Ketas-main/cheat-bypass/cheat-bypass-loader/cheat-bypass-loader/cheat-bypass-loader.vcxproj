@@ -1,0 +1,280 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!-- Sem /p:Configuration, compila Release|x64 (artefato de distribuicao). -->
+  <PropertyGroup>
+    <Configuration Condition="'$(Configuration)' == ''">Release</Configuration>
+    <Platform Condition="'$(Platform)' == ''">x64</Platform>
+    <!-- Saida sempre relativa ao projeto, independente de ser build por .sln
+         ou por .vcxproj, para o pipeline achar o binario no mesmo lugar. -->
+    <OutDir>$(ProjectDir)$(Platform)\$(Configuration)\</OutDir>
+  </PropertyGroup>
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{457f30c1-494f-4947-87b8-6b22aabf94fe}</ProjectGuid>
+    <RootNamespace>cheatbypassloader</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <EnableWebSocket Condition="'$(EnableWebSocket)' == ''">false</EnableWebSocket>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <Link>
+      <AdditionalDependencies>user32.lib;advapi32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(EnableWebSocket)' == 'true'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <DebugInformationFormat>None</DebugInformationFormat>
+      <Optimization>MaxSpeed</Optimization>
+      <StringPooling>true</StringPooling>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>_DEBUG;_WINDOWS;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <EntryPointSymbol>mainCRTStartup</EntryPointSymbol>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>NDEBUG;_WINDOWS;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <!-- /MD: o CRT e carregado como DLL. O Donut nao inicializa o CRT estatico
+           dentro de um PE mapeado manualmente; com /MD o UCRT ja esta pronto no
+           processo-alvo (mesma configuracao do payload de diagnostico que funciona). -->
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <DebugInformationFormat>None</DebugInformationFormat>
+      <Optimization>MaxSpeed</Optimization>
+      <StringPooling>true</StringPooling>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <EntryPointSymbol>mainCRTStartup</EntryPointSymbol>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="Main.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="cheat_embedded.hpp" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(EnableWebSocket)' == 'true'">
+    <ClCompile Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXBench.cpp" />
+    <ClCompile Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXCancellationRequest.cpp" />
+    <ClCompile Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXConnectionState.cpp" />
+    <ClCompile Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXDNSLookup.cpp" />
+    <ClCompile Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXExponentialBackoff.cpp" />
+    <ClCompile Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXGetFreePort.cpp" />
+    <ClCompile Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXGzipCodec.cpp" />
+    <ClCompile Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXHttp.cpp" />
+    <ClCompile Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXHttpClient.cpp" />
+    <ClCompile Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXHttpServer.cpp" />
+    <ClCompile Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXNetSystem.cpp" />
+    <ClCompile Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXSelectInterrupt.cpp" />
+    <ClCompile Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXSelectInterruptEvent.cpp" />
+    <ClCompile Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXSelectInterruptFactory.cpp" />
+    <ClCompile Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXSelectInterruptPipe.cpp" />
+    <ClCompile Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXSetThreadName.cpp" />
+    <ClCompile Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXSocket.cpp" />
+    <ClCompile Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXSocketAppleSSL.cpp" />
+    <ClCompile Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXSocketConnect.cpp" />
+    <ClCompile Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXSocketFactory.cpp" />
+    <ClCompile Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXSocketMbedTLS.cpp" />
+    <ClCompile Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXSocketOpenSSL.cpp" />
+    <ClCompile Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXSocketServer.cpp" />
+    <ClCompile Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXSocketTLSOptions.cpp" />
+    <ClCompile Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXStrCaseCompare.cpp" />
+    <ClCompile Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXUdpSocket.cpp" />
+    <ClCompile Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXUrlParser.cpp" />
+    <ClCompile Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXUserAgent.cpp" />
+    <ClCompile Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXUuid.cpp" />
+    <ClCompile Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXWebSocket.cpp" />
+    <ClCompile Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXWebSocketCloseConstants.cpp" />
+    <ClCompile Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXWebSocketHandshake.cpp" />
+    <ClCompile Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXWebSocketHttpHeaders.cpp" />
+    <ClCompile Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXWebSocketPerMessageDeflate.cpp" />
+    <ClCompile Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXWebSocketPerMessageDeflateCodec.cpp" />
+    <ClCompile Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXWebSocketPerMessageDeflateOptions.cpp" />
+    <ClCompile Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXWebSocketProxyServer.cpp" />
+    <ClCompile Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXWebSocketServer.cpp" />
+    <ClCompile Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXWebSocketTransport.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Functions.hpp" />
+    <ClInclude Include="Debug.hpp" />
+    <ClInclude Include="Dependencies.hpp" />
+    <ClInclude Include="xorstr.hpp" />
+    <ClInclude Include="syscalls.hpp" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(EnableWebSocket)' == 'true'">
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXBase64.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXBench.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXCancellationRequest.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXConnectionState.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXDNSLookup.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXExponentialBackoff.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXGetFreePort.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXGzipCodec.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXHttp.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXHttpClient.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXHttpServer.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXNetSystem.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXProgressCallback.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXSelectInterrupt.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXSelectInterruptEvent.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXSelectInterruptFactory.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXSelectInterruptPipe.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXSetThreadName.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXSocket.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXSocketAppleSSL.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXSocketConnect.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXSocketFactory.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXSocketMbedTLS.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXSocketOpenSSL.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXSocketServer.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXSocketTLSOptions.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXStrCaseCompare.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXUdpSocket.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXUniquePtr.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXUrlParser.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXUserAgent.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXUtf8Validator.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXUuid.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXWebSocket.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXWebSocketCloseConstants.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXWebSocketCloseInfo.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXWebSocketErrorInfo.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXWebSocketHandshake.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXWebSocketHandshakeKeyGen.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXWebSocketHttpHeaders.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXWebSocketInitResult.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXWebSocketMessage.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXWebSocketMessageType.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXWebSocketOpenInfo.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXWebSocketPerMessageDeflate.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXWebSocketPerMessageDeflateCodec.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXWebSocketPerMessageDeflateOptions.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXWebSocketProxyServer.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXWebSocketSendData.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXWebSocketSendInfo.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXWebSocketServer.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXWebSocketTransport.h" />
+    <ClInclude Include="C:\Users\weed\Desktop\s\cheat-fivem-project\src\Security\Api\websocket\IXWebSocketVersion.h" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

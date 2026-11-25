@@ -1,0 +1,478 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>16.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{30ddb2ea-876d-48c0-8cc5-8c6db8334bd2}</ProjectGuid>
+    <RootNamespace>Weed</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <ProjectName>Weed</ProjectName>
+    <PreferredToolArchitecture>x64</PreferredToolArchitecture>
+    <DXSDK_D3DX_DIR>$(ProjectDir)..\packages\Microsoft.DXSDK.D3DX.9.29.952.3\build\native</DXSDK_D3DX_DIR>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <WholeProgramOptimization>false</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <WholeProgramOptimization>false</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <IncludePath>$(ProjectDir)Includes;$(ProjectDir)..\packages\Microsoft.DXSDK.D3DX.9.29.952.3\build\native\include;$(IncludePath)</IncludePath>
+    <LibraryPath>$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <IncludePath>$(ProjectDir)..\packages\Microsoft.DXSDK.D3DX.9.29.952.3\build\native\include;$(ProjectDir)src\Security\Api\websocket;$(ProjectDir);$(ProjectDir)Includes\ImGui\Files\FreeType\include;$(ProjectDir)Includes;$(IncludePath)</IncludePath>
+    <LibraryPath>$(ProjectDir)Includes\ImGui\Files\FreeType\win64;$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <IncludePath>$(ProjectDir)Includes;$(ProjectDir)..\packages\Microsoft.DXSDK.D3DX.9.29.952.3\build\native\include;$(IncludePath)</IncludePath>
+    <LibraryPath>$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <IncludePath>$(ProjectDir)Includes;$(ProjectDir)..\packages\Microsoft.DXSDK.D3DX.9.29.952.3\build\native\include;$(IncludePath)</IncludePath>
+    <LibraryPath>$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>WIN32;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>WIN32;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>NDEBUG;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <AdditionalOptions>/utf-8 /bigobj %(AdditionalOptions)</AdditionalOptions>
+      <LanguageStandard_C>stdc17</LanguageStandard_C>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
+      <AdditionalDependencies>opengl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <UACExecutionLevel>RequireAdministrator</UACExecutionLevel>
+      <EntryPointSymbol>
+      </EntryPointSymbol>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClInclude Include="Core\Features\Aimbot\AimEngine.hpp" />
+    <ClInclude Include="Core\Features\Aimbot\AimMath.hpp" />
+    <ClInclude Include="Core\Features\LosProbe.hpp" />
+    <ClInclude Include="Core\Features\VehicleWheelVisibility.hpp" />
+    <ClInclude Include="pch.h" />
+    <ClInclude Include="Core\Config.hpp" />
+    <ClInclude Include="Core\Core.hpp" />
+    <ClInclude Include="Core\Features\Aimbot\Aimbot.hpp" />
+    <ClInclude Include="Core\Features\Aimbot\Prediction.hpp" />
+    <ClInclude Include="Core\Features\Esp\Esp.hpp" />
+    <ClInclude Include="Core\Features\Exploits\Exploits.hpp" />
+    <ClInclude Include="Core\Features\Exploits\GiveWeapon.hpp" />
+    <ClInclude Include="Core\Features\Exploits\HandlingEditor.hpp" />
+    <ClInclude Include="Core\Features\Silent\Bypass\CameraBypass.hpp" />
+    <ClInclude Include="Core\Features\Silent\MagicBullets.hpp" />
+    <ClInclude Include="Core\Features\Silent\SilentAim.hpp" />
+    <ClInclude Include="Core\Features\TriggerBot\Triggerbot.hpp" />
+    <ClInclude Include="Core\Features\VisibleCheck.hpp" />
+    <ClInclude Include="Core\Offsets.hpp" />
+    <ClInclude Include="Core\SDK\Memory.hpp" />
+    <ClInclude Include="Core\SDK\SDK.hpp" />
+    <ClInclude Include="Core\SDK\Structs\GameClasses.hpp" />
+    <ClInclude Include="Core\SDK\Structs\Structs.hpp" />
+    <ClInclude Include="Core\Threads\AutoDetect.hpp" />
+    <ClInclude Include="Core\Threads\EntityList.hpp" />
+    <ClInclude Include="Core\Features\Exploits\ResourceList.hpp" />
+    <ClInclude Include="Core\Features\Exploits\ResourceDumper.hpp" />
+    <ClInclude Include="Core\Threads\ScreenResolution.hpp" />
+    <ClInclude Include="Core\Threads\UpdateNames.hpp" />
+    <ClInclude Include="Core\Threads\UpdatePointers.hpp" />
+    <ClInclude Include="Core\Threads\VehicleList.hpp" />
+    <ClInclude Include="Core\Threads\WebSocket.hpp" />
+    <ClInclude Include="Gui\Custom\Custom.hpp" />
+    <ClInclude Include="Gui\Gui.hpp" />
+    <ClInclude Include="Gui\Overlay\Overlay.hpp" />
+    <ClInclude Include="Gui\pages\Combat.hpp" />
+    <ClInclude Include="Gui\Pages\Exploits.hpp" />
+    <ClInclude Include="Gui\Pages\Local.hpp" />
+    <ClInclude Include="Gui\Pages\Settings.hpp" />
+    <ClInclude Include="Gui\Pages\Visuals.hpp" />
+    <ClInclude Include="Gui\Pages\World.hpp" />
+    <ClInclude Include="Includes\CustomWidgets\Custom.hpp" />
+    <ClInclude Include="Includes\CustomWidgets\EspPreview.hpp" />
+    <ClInclude Include="Includes\CustomWidgets\Notify.hpp" />
+    <ClInclude Include="Includes\CustomWidgets\Preview.hpp" />
+    <ClInclude Include="Includes\CustomWidgets\WaterMarks.hpp" />
+    <ClInclude Include="Includes\ImGui\Files\imconfig.h" />
+    <ClInclude Include="Includes\ImGui\Files\imgui.h" />
+    <ClInclude Include="Includes\ImGui\Files\imgui_freetype.h" />
+    <ClInclude Include="Includes\ImGui\Files\imgui_impl_opengl3.h" />
+    <ClInclude Include="Includes\ImGui\Files\imgui_impl_opengl3_loader.h" />
+    <ClInclude Include="Includes\ImGui\Files\stb_image.h" />
+    <ClInclude Include="Includes\OpenGL\GL.hpp" />
+    <ClInclude Include="Includes\ImGui\Files\imgui_impl_win32.h" />
+    <ClInclude Include="Includes\ImGui\Files\imgui_internal.h" />
+    <ClInclude Include="Includes\ImGui\Files\imstb_rectpack.h" />
+    <ClInclude Include="Includes\ImGui\Files\imstb_textedit.h" />
+    <ClInclude Include="Includes\ImGui\Files\imstb_truetype.h" />
+    <ClInclude Include="Includes\ImGui\Files\menu_settings.hpp" />
+    <ClInclude Include="Includes\Includes.hpp" />
+    <ClInclude Include="Globals.hpp" />
+    <ClInclude Include="Includes\Utils.hpp" />
+    <ClInclude Include="Others\Security\xorstr.hpp" />
+    <ClInclude Include="Security\AntiCrack.hpp" />
+    <ClInclude Include="Security\AntiTamper.hpp" />
+    <ClInclude Include="Security\Api\api.hpp" />
+    <ClInclude Include="Security\Api\json.hpp" />
+    <ClInclude Include="Security\Api\structs\structs.hpp" />
+    <ClInclude Include="Security\Api\websocket\IXBase64.h" />
+    <ClInclude Include="Security\Api\websocket\IXBench.h" />
+    <ClInclude Include="Security\Api\websocket\IXCancellationRequest.h" />
+    <ClInclude Include="Security\Api\websocket\IXConnectionState.h" />
+    <ClInclude Include="Security\Api\websocket\IXDNSLookup.h" />
+    <ClInclude Include="Security\Api\websocket\IXExponentialBackoff.h" />
+    <ClInclude Include="Security\Api\websocket\IXGetFreePort.h" />
+    <ClInclude Include="Security\Api\websocket\IXGzipCodec.h" />
+    <ClInclude Include="Security\Api\websocket\IXHttp.h" />
+    <ClInclude Include="Security\Api\websocket\IXHttpClient.h" />
+    <ClInclude Include="Security\Api\websocket\IXHttpServer.h" />
+    <ClInclude Include="Security\Api\websocket\IXNetSystem.h" />
+    <ClInclude Include="Security\Api\websocket\IXProgressCallback.h" />
+    <ClInclude Include="Security\Api\websocket\IXSelectInterrupt.h" />
+    <ClInclude Include="Security\Api\websocket\IXSelectInterruptEvent.h" />
+    <ClInclude Include="Security\Api\websocket\IXSelectInterruptFactory.h" />
+    <ClInclude Include="Security\Api\websocket\IXSelectInterruptPipe.h" />
+    <ClInclude Include="Security\Api\websocket\IXSetThreadName.h" />
+    <ClInclude Include="Security\Api\websocket\IXSocket.h" />
+    <ClInclude Include="Security\Api\websocket\IXSocketAppleSSL.h" />
+    <ClInclude Include="Security\Api\websocket\IXSocketConnect.h" />
+    <ClInclude Include="Security\Api\websocket\IXSocketFactory.h" />
+    <ClInclude Include="Security\Api\websocket\IXSocketMbedTLS.h" />
+    <ClInclude Include="Security\Api\websocket\IXSocketOpenSSL.h" />
+    <ClInclude Include="Security\Api\websocket\IXSocketServer.h" />
+    <ClInclude Include="Security\Api\websocket\IXSocketTLSOptions.h" />
+    <ClInclude Include="Security\Api\websocket\IXStrCaseCompare.h" />
+    <ClInclude Include="Security\Api\websocket\IXUdpSocket.h" />
+    <ClInclude Include="Security\Api\websocket\IXUniquePtr.h" />
+    <ClInclude Include="Security\Api\websocket\IXUrlParser.h" />
+    <ClInclude Include="Security\Api\websocket\IXUserAgent.h" />
+    <ClInclude Include="Security\Api\websocket\IXUtf8Validator.h" />
+    <ClInclude Include="Security\Api\websocket\IXUuid.h" />
+    <ClInclude Include="Security\Api\websocket\IXWebSocket.h" />
+    <ClInclude Include="Security\Api\websocket\IXWebSocketCloseConstants.h" />
+    <ClInclude Include="Security\Api\websocket\IXWebSocketCloseInfo.h" />
+    <ClInclude Include="Security\Api\websocket\IXWebSocketErrorInfo.h" />
+    <ClInclude Include="Security\Api\websocket\IXWebSocketHandshake.h" />
+    <ClInclude Include="Security\Api\websocket\IXWebSocketHandshakeKeyGen.h" />
+    <ClInclude Include="Security\Api\websocket\IXWebSocketHttpHeaders.h" />
+    <ClInclude Include="Security\Api\websocket\IXWebSocketInitResult.h" />
+    <ClInclude Include="Security\Api\websocket\IXWebSocketMessage.h" />
+    <ClInclude Include="Security\Api\websocket\IXWebSocketMessageType.h" />
+    <ClInclude Include="Security\Api\websocket\IXWebSocketOpenInfo.h" />
+    <ClInclude Include="Security\Api\websocket\IXWebSocketPerMessageDeflate.h" />
+    <ClInclude Include="Security\Api\websocket\IXWebSocketPerMessageDeflateCodec.h" />
+    <ClInclude Include="Security\Api\websocket\IXWebSocketPerMessageDeflateOptions.h" />
+    <ClInclude Include="Security\Api\websocket\IXWebSocketProxyServer.h" />
+    <ClInclude Include="Security\Api\websocket\IXWebSocketSendData.h" />
+    <ClInclude Include="Security\Api\websocket\IXWebSocketSendInfo.h" />
+    <ClInclude Include="Security\Api\websocket\IXWebSocketServer.h" />
+    <ClInclude Include="Security\Api\websocket\IXWebSocketTransport.h" />
+    <ClInclude Include="Security\Api\websocket\IXWebSocketVersion.h" />
+    <ClInclude Include="Security\xorstr.hpp" />
+    <ClInclude Include="Utils\Memory\Memory.hpp" />
+    <ClInclude Include="Utils\Utils.hpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- pch.cpp: cria o precompiled header -->
+    <ClCompile Include="Core\Features\Silent\MagicBullets.cpp" />
+    <ClCompile Include="pch.cpp">
+      <PrecompiledHeader>Create</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+    </ClCompile>
+    <!-- Arquivos do projeto (usam pch.h via ItemDefinitionGroup) -->
+    <ClCompile Include="Core\Features\Aimbot\Aimbot.cpp" />
+    <ClCompile Include="Core\Features\Esp\Esp.cpp" />
+    <ClCompile Include="Core\Features\Silent\Bypass\CameraBypass.cpp" />
+    <ClCompile Include="Core\Features\Silent\SilentAim.cpp" />
+    <ClCompile Include="Core\Features\TriggerBot\Triggerbot.cpp" />
+    <ClCompile Include="Core\SDK\Memory.cpp" />
+    <ClCompile Include="Core\SDK\SDK.cpp" />
+    <ClCompile Include="Gui\Gui.cpp">
+      <Optimization>Disabled</Optimization>
+      <IntrinsicFunctions>false</IntrinsicFunctions>
+    </ClCompile>
+    <ClCompile Include="Gui\Overlay\Overlay.cpp" />
+    <ClCompile Include="main.cpp" />
+    <!-- ImGui: nao inclui pch.h, PCH desativado para estes arquivos -->
+    <ClCompile Include="Includes\ImGui\Files\imgui.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Includes\ImGui\Files\imgui_demo.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <ExcludedFromBuild>true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="Includes\ImGui\Files\imgui_draw.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Includes\ImGui\Files\imgui_freetype.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Includes\ImGui\Files\imgui_impl_opengl3.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Includes\OpenGL\GL.cpp" />
+    <ClCompile Include="Includes\D3DXMathShim.cpp" />
+    <ClCompile Include="Includes\ImGui\Files\imgui_impl_win32.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Includes\ImGui\Files\imgui_tables.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Includes\ImGui\Files\imgui_widgets.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <!-- IXWebSocket: nao inclui pch.h, PCH desativado -->
+    <ClCompile Include="Security\Api\websocket\IXBench.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Security\Api\websocket\IXCancellationRequest.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Security\Api\websocket\IXConnectionState.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Security\Api\websocket\IXDNSLookup.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Security\Api\websocket\IXExponentialBackoff.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Security\Api\websocket\IXGetFreePort.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Security\Api\websocket\IXGzipCodec.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Security\Api\websocket\IXHttp.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Security\Api\websocket\IXHttpClient.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Security\Api\websocket\IXHttpServer.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Security\Api\websocket\IXNetSystem.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Security\Api\websocket\IXSelectInterrupt.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Security\Api\websocket\IXSelectInterruptEvent.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Security\Api\websocket\IXSelectInterruptFactory.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Security\Api\websocket\IXSelectInterruptPipe.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Security\Api\websocket\IXSetThreadName.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Security\Api\websocket\IXSocket.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Security\Api\websocket\IXSocketAppleSSL.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Security\Api\websocket\IXSocketConnect.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Security\Api\websocket\IXSocketFactory.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Security\Api\websocket\IXSocketMbedTLS.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Security\Api\websocket\IXSocketOpenSSL.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Security\Api\websocket\IXSocketServer.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Security\Api\websocket\IXSocketTLSOptions.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Security\Api\websocket\IXStrCaseCompare.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Security\Api\websocket\IXUdpSocket.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Security\Api\websocket\IXUrlParser.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Security\Api\websocket\IXUserAgent.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Security\Api\websocket\IXUuid.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Security\Api\websocket\IXWebSocket.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Security\Api\websocket\IXWebSocketCloseConstants.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Security\Api\websocket\IXWebSocketHandshake.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Security\Api\websocket\IXWebSocketHttpHeaders.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Security\Api\websocket\IXWebSocketPerMessageDeflate.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Security\Api\websocket\IXWebSocketPerMessageDeflateCodec.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Security\Api\websocket\IXWebSocketPerMessageDeflateOptions.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Security\Api\websocket\IXWebSocketProxyServer.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Security\Api\websocket\IXWebSocketServer.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Security\Api\websocket\IXWebSocketTransport.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Library Include="Includes\ImGui\Files\freetype\win64\freetype.lib" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

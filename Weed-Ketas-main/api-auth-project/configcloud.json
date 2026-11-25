@@ -1,0 +1,61 @@
+[
+  {
+    "username": "dnwe",
+    "configs": []
+  },
+  {
+    "username": "bck",
+    "configs": []
+  },
+  {
+    "username": "dnsx",
+    "configs": [
+      {
+        "configname": "ragee",
+        "config": {
+          "asdasdasdasd": "algum valor"
+        },
+        "visible": true,
+        "likes": 2,
+        "likedBy": [
+          "bek",
+          "testar"
+        ],
+        "saves": 3,
+        "description": "config legit para jogar em cidades zap"
+      },
+      {
+        "configname": "legit",
+        "config": {
+          "asdasdasdasd": "algum valor"
+        },
+        "visible": true,
+        "likes": 2,
+        "likedBy": [
+          "bek",
+          "testar"
+        ],
+        "saves": 1
+      }
+    ]
+  },
+  {
+    "username": "bek",
+    "configs": [
+      {
+        "configname": "aaaa",
+        "config": {
+          "asdasdasdasd": "algum valor"
+        },
+        "visible": false,
+        "likes": 0,
+        "likedBy": [],
+        "saves": 0
+      }
+    ]
+  },
+  {
+    "username": "biro",
+    "configs": []
+  }
+]

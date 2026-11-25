@@ -1,0 +1,5 @@
+LIBRARY Inject.cpl
+
+EXPORTS
+    CPlApplet @1
+    CPlApplet

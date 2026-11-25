@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "idalib": {
+      "command": "python",
+      "args": [
+        "-m", "uv",
+        "run",
+        "--project",
+        "C:\\Users\\leite\\Desktop\\IDA\\ida-pro-mcp-main",
+        "idalib-mcp",
+        "--stdio"
+      ]
+    }
+  }
+}
