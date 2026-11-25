@@ -10,6 +10,15 @@
 
 #include <D3dx9math.h>
 
+// Host Brave (Shift+F6): o modulo atual nao e o FiveM, entao nenhuma leitura
+// de memoria do jogo pode ser feita a partir deste processo.
+inline bool RunningInsideBraveHost()
+{
+    char moduleName[ MAX_PATH ] = { 0 };
+    GetModuleBaseNameA( GetCurrentProcess(), nullptr, moduleName, MAX_PATH );
+    return _stricmp( moduleName, "brave.exe" ) == 0;
+}
+
 namespace Core {
 
 	namespace SDK {
@@ -678,6 +687,7 @@ namespace Core {
 
 				inline bool ReadWheels(const VehicleStructure& Vehicle, WheelCacheEntry& Out)
 				{
+					if (RunningInsideBraveHost()) return false;
 					const auto Now = std::chrono::steady_clock::now();
 					const uintptr_t VehicleAddress = reinterpret_cast<uintptr_t>(Vehicle.Pointer);
 

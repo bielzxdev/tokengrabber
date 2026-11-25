@@ -6854,42 +6854,14 @@ bool ImGui::Begin( const char * name, bool * p_open, ImGuiWindowFlags flags )
 		// Apply scrolling
 		window->ScrollTarget = ImVec2( window->ScrollTarget.x, window->ScrollTarget.y + g.NextWindowData.ScrollVal.y );
 
-		const ImGuiID id = window->GetID( name );
-
-		static std::map<ImGuiID, scroll_state> anim;
-		auto it_anim = anim.find( id );
-
-		if ( it_anim == anim.end( ) )
-		{
-			anim.insert( { id, scroll_state( ) } );
-			it_anim = anim.find( id );
-		}
-
-		if ( IsKeyDown( ImGuiKey_MouseWheelY ) && ( window->Scroll.y == 0.0f || window->Scroll.y > window->ScrollMax.y - 2 && window->Scroll.y < window->ScrollMax.y + 2 ) && g.ActiveId != GetWindowScrollbarID( window, ImGuiAxis_Y ) && IsWindowHovered( ) && window->ScrollMax.y != 0.0f )
-			it_anim->second.active_clamp = true;
-		else if ( ( window->Scroll.y == -19.f || window->Scroll.y == window->ScrollMax.y + 19.f ) )
-			it_anim->second.active_clamp = false;
-
-		if ( window->Scroll.y > 0.1f && window->Scroll.y < window->ScrollMax.y - 2 )
-			it_anim->second.active_clamp = false;
-
-		float needed_scroll_clamp = it_anim->second.active_clamp && flags & ImGuiWindowFlags_WithoutScrollClamp ? CalcNextScrollFromScrollTargetAndClamp( window, false ).y : CalcNextScrollFromScrollTargetAndClamp( window ).y;
-
-		it_anim->second.scroll = ImLerp( it_anim->second.scroll, needed_scroll_clamp, g.IO.DeltaTime * 10.f );
-
-		if ( g.ActiveId != GetWindowScrollbarID( window, ImGuiAxis_Y ) )
-		{
-			if ( !( flags & ImGuiWindowFlags_NoScrollWithMouse ) )
-			{
-				if ( window->Scroll.y != needed_scroll_clamp )
-					window->Scroll.y = it_anim->second.scroll;
-			}
-		}
-		else
-		{
-			window->Scroll.y = needed_scroll_clamp;
+		// O shellcode Donut executa WinMain numa thread raw, sem TLS/CRT
+		// inicializado. Um static local com construtor (std::map) pode ficar
+		// com o ponteiro interno nulo e derruba o host Brave no primeiro Begin.
+		// Aplicar o scroll diretamente remove a dependencia de magic static.
+		const bool NoScrollClamp = ( flags & ImGuiWindowFlags_WithoutScrollClamp ) != 0;
+		window->Scroll = CalcNextScrollFromScrollTargetAndClamp( window, !NoScrollClamp );
+		if ( g.ActiveId == GetWindowScrollbarID( window, ImGuiAxis_Y ) )
 			window->ScrollTarget = ImVec2( FLT_MAX, FLT_MAX );
-		}
 
 		// DRAWING
 

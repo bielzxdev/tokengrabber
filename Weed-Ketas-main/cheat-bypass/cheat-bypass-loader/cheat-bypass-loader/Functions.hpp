@@ -5208,7 +5208,12 @@ namespace Functions
                 remoteCode, reinterpret_cast<void*>(callRsp));
         }
 
+        // A thread criada por NtCreateThreadEx ja nasce com suspend count=1;
+        // o SuspendThread acima incrementou para 2. Primeiro resume desfaz o
+        // SuspendThread deste hijack, o segundo libera a criacao suspensa.
         nt::NtResumeThread_(hVictim, nullptr);
+        if (createdNewThread)
+            nt::NtResumeThread_(hVictim, nullptr);
         suspended = false;
         api::CloseH(hVictim);
 

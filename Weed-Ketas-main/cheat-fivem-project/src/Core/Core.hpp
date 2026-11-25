@@ -4,6 +4,7 @@
 #include <Core/Offsets.hpp>
 #include <Core/SDK/SDK.hpp>
 #include <Core/Features/Silent/SilentAim.hpp>
+#include <Core/Features/VehicleWheelVisibility.hpp>
 
 #include <string>
 #include <regex>
@@ -796,6 +797,12 @@ namespace Core
         // Set this before launching workers so a second call cannot start a
         // duplicate set while the first one is still being created.
         ThreadsStarted = true;
+
+        // Hosted inside Brave (Shift+F6): the worker threads read FiveM memory
+        // from a process the game never expected and can fault, killing the
+        // whole host. The overlay and the Insert menu do not need them.
+        if (Features::RunningInsideBraveHost())
+            return;
 
         // Info
         std::thread(&Threads::cScreenResolution::Update, Threads::g_ScreenResolution).detach();

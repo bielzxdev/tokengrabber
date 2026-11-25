@@ -40,6 +40,14 @@ int APIENTRY WinMain(HINSTANCE, HINSTANCE, PSTR, int)
 
 	GetWindowThreadProcessId(g_Variables.g_hGameWindow, &g_Variables.ProcIdFiveM);
 	GetOffsets();
-	Gui::cOverlay.Render();
+
+	// WinMain roda na thread injetada pelo Donut (CreateThread bruto). O
+	// overlay precisa de uma thread com o CRT inicializado para os estados
+	// estaticos do ImGui nao ficarem com ponteiros nulos dentro do Brave.
+	std::thread OverlayThread( [&]()
+	{
+		Gui::cOverlay.Render();
+	} );
+	OverlayThread.join();
 	return 0;
 }

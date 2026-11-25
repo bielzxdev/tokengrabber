@@ -18,6 +18,9 @@
 
 #include "imgui.h"
 #ifndef IMGUI_DISABLE
+// Host Brave: nao carregar XInput. O modulo cria threads de polling que
+// retornam para a imagem mapeada pelo Donut e derrubam o processo.
+#define IMGUI_IMPL_WIN32_DISABLE_GAMEPAD
 #include "imgui_impl_win32.h"
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
