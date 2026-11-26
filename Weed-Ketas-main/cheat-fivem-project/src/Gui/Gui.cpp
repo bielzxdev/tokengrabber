@@ -579,8 +579,12 @@ void Gui::Rendering()
 									g_MenuInfo.IsLogged = true;
 									g_MenuInfo.MenuSize = {700, 400};
 
-									// WebSocket do painel: ws://...:1534 (sem certificado).
-									Core::Threads::InitializeWebSocket( );
+									// Dentro do RuntimeBroker injetado as threads do
+									// WebSocket/radar nao tem a cadeia SEH inicializada
+									// (setThreadName lanca 0x406D1388 e mata o host).
+									// O menu normal nao depende desse canal.
+									if ( !RunningInsideInjectedHost( ) )
+										Core::Threads::InitializeWebSocket( );
 								}
 								else
 								{

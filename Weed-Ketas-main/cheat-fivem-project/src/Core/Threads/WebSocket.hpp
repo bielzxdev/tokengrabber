@@ -846,6 +846,12 @@ namespace Core::Threads
 			m_shouldReconnect = true;
 			m_needsRegister   = true;
 
+			// setThreadName() usa RaiseException(0x406D1388). Em processos
+			// injetados a cadeia SEH da thread pode nao estar pronta e essa
+			// excecao "de debugger" termina o processo. O nome da thread e
+			// apenas cosmético para debuggers, então desligamos.
+			m_webSocket->setAutoThreadName( false );
+
 			m_webSocket->setUrl( Url );
 			m_webSocket->setOnMessageCallback( [ this ]( const ix::WebSocketMessagePtr & msg ) {
 				OnMessageReceived( msg );
