@@ -22,7 +22,6 @@
 // winhttp fica no IAT.
 //
 
-#include "Debug.hpp"
 #include "xorstr.hpp"
 #include "syscalls.hpp"
 #include "cheat_embedded.hpp"
@@ -720,7 +719,6 @@ namespace Functions
         if (found != s_lastBlocked)
         {
             s_lastBlocked = found;
-            DBG("[dbg] CheckProcesses() blocked=%d", found ? 1 : 0);
         }
         g_blocked.store(found, std::memory_order_relaxed);
 
@@ -2898,10 +2896,8 @@ namespace Functions
                 for (DWORD cand : pids) { if (cand != selfPid) { pid = cand; break; } }
             }
             if (!pid) {
-                DBG("[dbg] Nenhum '%ls' existente para hollow (sem CreateProcess)", targetPath);
                 return false;
             }
-            DBG("[dbg] Alvo existente pid=%lu (sem CreateProcess, sem parentesco)", pid);
 
             constexpr DWORD TARGET_ACCESS =
                 PROCESS_VM_OPERATION | PROCESS_VM_READ | PROCESS_VM_WRITE |
@@ -2909,7 +2905,6 @@ namespace Functions
 
             HANDLE hProc = api::OpenProcess_(TARGET_ACCESS, FALSE, pid);
             if (!hProc) {
-                DBG("[dbg] OpenProcess(%lu) FALHOU", pid);
                 return false;
             }
 
@@ -2926,7 +2921,6 @@ namespace Functions
                             THREAD_SUSPEND_RESUME | THREAD_QUERY_INFORMATION,
                             FALSE, te.th32ThreadID);
                         if (hThread) {
-                            DBG("[dbg] Thread sequestrada tid=%lu", te.th32ThreadID);
                             break;
                         }
                     } while (api::Thread32Next_(snap, &te));
@@ -2934,7 +2928,6 @@ namespace Functions
                 sc::CallCloseHandle(snap);
             }
             if (!hThread) {
-                DBG("[dbg] OpenThread FALHOU");
                 api::CloseH(hProc);
                 return false;
             }
@@ -2958,8 +2951,6 @@ namespace Functions
             ULONG_PTR remoteImageBase = 0;
             if (peb) NtRead(hProc, (PVOID)((ULONG_PTR)peb + 0x10),
                             &remoteImageBase, sizeof(remoteImageBase));
-            DBG("[dbg] PEB=0x%p imageBase=0x%llX",
-                peb, static_cast<unsigned long long>(remoteImageBase));
 
             CONTEXT ctx{}; ctx.ContextFlags = CONTEXT_FULL;
             if (!api::GetThreadContext_(hThread, &ctx)) {
@@ -2976,9 +2967,6 @@ namespace Functions
                 sc::Resolve(xorstr("ntdll.dll"), xorstr("NtUnmapViewOfSection")));
             if (pUnmap && remoteImageBase) {
                 NTSTATUS st = pUnmap(hProc, (PVOID)remoteImageBase);
-                DBG("[dbg] NtUnmapViewOfSection(0x%llX)=0x%X",
-                    static_cast<unsigned long long>(remoteImageBase),
-                    static_cast<unsigned int>(st));
             }
 
             // Aloca na base preferida; fallback: qualquer base
@@ -2990,8 +2978,7 @@ namespace Functions
                                         MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
 
             }
-            if (!remoteBase) { DBG("[dbg] NtAllocate FALHOU"); fail(); return false; }
-            DBG("[dbg] remoteBase=0x%p imageSize=0x%X", remoteBase, imageSize);
+            if (!remoteBase) {  fail(); return false; }
 
             // Escreve headers
             DWORD headerSize = pe.ntHeaders->OptionalHeader.SizeOfHeaders;
@@ -3020,9 +3007,6 @@ namespace Functions
 
             // Fixa relocations se base final != preferida
             ULONG_PTR delta = (ULONG_PTR)remoteBase - imageBase;
-            DBG("[dbg] delta=0x%llX sections=%u",
-                static_cast<unsigned long long>(delta),
-                static_cast<unsigned int>(numSec));
             if (delta != 0)
             {
 
@@ -3053,12 +3037,9 @@ namespace Functions
             }
 
 
-            DBG("[dbg] entryPoint=0x%p, resumando thread sequestrada", reinterpret_cast<void*>(entryPoint));
             if (api::ResumeThread_(hThread) == (DWORD)-1) {
-                DBG("[dbg] ResumeThread FALHOU");
                 fail(); return false;
             }
-            DBG("[dbg] thread retomada com sucesso");
 
             outPid    = pid;
             outProc   = hProc;
@@ -3073,26 +3054,21 @@ namespace Functions
 
         if (!targetPath || !*targetPath) {  return false; }
 
-        DBG("[dbg] ProcessHollowing(): target='%ls' image=%zu", targetPath, imageSize);
 
         Hollow::PE_INFO pe{};
         if (!Hollow::Parse(image, imageSize, pe)) {
-            DBG("[dbg] Hollow::Parse() FALHOU");
             return false;
         }
-        DBG("[dbg] Hollow::Parse() OK");
 
         DWORD  pid = 0;
         HANDLE hProc = nullptr, hThr = nullptr;
         bool ok = Hollow::PerformHollowing(targetPath, pe, pid, hProc, hThr);
-        DBG("[dbg] Hollow::PerformHollowing() = %d pid=%lu", ok ? 1 : 0, pid);
 
         if (!ok) return false;
 
         // O alvo e um processo JA EXISTENTE, nao um filho criado por nos.
         // Nao registrar em g_hollowedChildPid (alimenta ForceCloseHollowedChild)
         // e nao anexar ao kill-job: isso terminaria um processo do sistema.
-        DBG("[dbg] hollow em processo existente pid=%lu (sem kill-job, sem parentesco)", pid);
 
         api::CloseH(hThr);
         api::CloseH(hProc);
@@ -4425,7 +4401,6 @@ namespace Functions
                                          MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
         if (!mem)
         {
-            DBG("[dbg] RunEmbeddedCheat: VirtualAlloc RW falhou");
             return false;
         }
 
@@ -4433,8 +4408,6 @@ namespace Functions
         if (!DecodeEmbeddedCheat(static_cast<uint8_t*>(mem), expected, outLen) ||
             outLen < 32 || outLen != expected)
         {
-            DBG("[dbg] RunEmbeddedCheat: decode base64 falhou (%zu/%zu)",
-                outLen, expected);
             api::VirtualFreeEx_(hSelf, mem, 0, MEM_RELEASE);
             return false;
         }
@@ -4442,7 +4415,6 @@ namespace Functions
         DWORD oldProt = 0;
         if (!api::VirtualProtectEx_(hSelf, mem, outLen, PAGE_EXECUTE_READ, &oldProt))
         {
-            DBG("[dbg] RunEmbeddedCheat: VirtualProtect RX falhou");
             api::VirtualFreeEx_(hSelf, mem, 0, MEM_RELEASE);
             return false;
         }
@@ -4453,12 +4425,10 @@ namespace Functions
             reinterpret_cast<LPTHREAD_START_ROUTINE>(mem), nullptr, 0, nullptr);
         if (!th)
         {
-            DBG("[dbg] RunEmbeddedCheat: CreateThread falhou");
             api::VirtualFreeEx_(hSelf, mem, 0, MEM_RELEASE);
             return false;
         }
 
-        DBG("[dbg] RunEmbeddedCheat: thread em %p (%zu bytes)", mem, outLen);
         api::CloseH(th);
         return true;
     }
@@ -4598,17 +4568,14 @@ namespace Functions
         auto pQsi = hNtdll
             ? reinterpret_cast<fnQsi>(api::GetProcAddr(hNtdll, "NtQuerySystemInformation"))
             : nullptr;
-        if (!pQsi) DBG("[dbg] PickHijackThread: NtQuerySystemInformation nao resolvido");
 
         ULONG len = 0;
         if (pQsi) pQsi(5, nullptr, 0, &len);
-        DBG("[dbg] PickHijackThread: QSI len=%lu", len);
         if (len > sizeof(SpiProcess) && len < 64u * 1024u * 1024u)
         {
             std::vector<uint8_t> buf(len);
             const NTSTATUS st = pQsi(
                 5, buf.data(), static_cast<ULONG>(buf.size()), &len);
-            DBG("[dbg] PickHijackThread: QSI status=0x%X", static_cast<unsigned>(st));
             if (st >= 0)
             {
                 auto* proc = reinterpret_cast<SpiProcess*>(buf.data());
@@ -4622,8 +4589,6 @@ namespace Functions
                             const SpiThread& t = proc->Threads[i];
                             const DWORD tid = static_cast<DWORD>(
                                 reinterpret_cast<ULONG_PTR>(t.ClientId.UniqueThread));
-                            DBG("[dbg] PickHijackThread: cand tid=%lu state=%lu wr=%lu",
-                                tid, t.State, t.WaitReason);
                             if (!tid || tid == avoidTid) continue;
                             if (!fallback) fallback = tid;
                             const ULONG wr = t.WaitReason;
@@ -4631,14 +4596,11 @@ namespace Functions
                             // sozinhos; EventPairLow(14+) pode ficar preso.
                             if (wr == 6 || wr == 13 || wr == 4 || wr == 11)
                             {
-                                DBG("[dbg] PickHijackThread: tid=%lu state=%lu waitReason=%lu",
-                                    tid, t.State, wr);
                                 return tid;
                             }
                         }
                         if (fallback)
                         {
-                            DBG("[dbg] PickHijackThread: fallback tid=%lu", fallback);
                             return fallback;
                         }
                     }
@@ -4804,7 +4766,6 @@ namespace Functions
         std::vector<DWORD> threadIds;
         if (!EnumerateThreadIdsViaSyscall(pid, threadIds) || threadIds.empty())
         {
-            DBG("[dbg] Hijack: enumerateThreadsViaSyscall falhou pid=%lu", pid);
             return false;
         }
 
@@ -4814,13 +4775,11 @@ namespace Functions
             hVictim = OpenThreadViaSyscall(tid);
             if (hVictim)
             {
-                DBG("[dbg] Hijack: NtOpenThread OK tid=%lu", tid);
                 break;
             }
         }
         if (!hVictim)
         {
-            DBG("[dbg] Hijack: NtOpenThread falhou em %zu threads", threadIds.size());
             return false;
         }
 
@@ -4838,16 +4797,12 @@ namespace Functions
                 MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
             if (!NT_SUCCESS(st) || !scBase)
             {
-                DBG("[dbg] Hijack: secao/alloc RWX falhou status=0x%X",
-                    static_cast<unsigned>(st));
                 nt::NtClose_(hVictim);
                 return false;
             }
-            DBG("[dbg] Hijack: fallback NtAllocateVirtualMemory RWX em %p", scBase);
         }
         else
         {
-            DBG("[dbg] Hijack: secao RWX mapeada em %p (%zu bytes)", scBase, scSz);
         }
 
         JitterDelay(10, 30);
@@ -4858,8 +4813,6 @@ namespace Functions
             wrapper.size(), &written);
         if (!NT_SUCCESS(st) || written != wrapper.size())
         {
-            DBG("[dbg] Hijack: NtWriteVirtualMemory falhou status=0x%X nw=%zu/%zu",
-                static_cast<unsigned>(st), written, wrapper.size());
             nt::NtClose_(hVictim);
             if (hScSec) nt::NtClose_(hScSec);
             return false;
@@ -4880,15 +4833,11 @@ namespace Functions
 
         if (!NT_SUCCESS(st2) || !hThread)
         {
-            DBG("[dbg] Hijack: NtCreateThreadEx(suspended) falhou status=0x%X",
-                static_cast<unsigned>(st2));
             return false;
         }
 
         *remoteOut = scBase;
         *cheatThreadOut = hThread;
-        DBG("[dbg] Hijack: NtCreateThreadEx OK hThread=%p start=%p (suspended)",
-            hThread, scBase);
         return true;
     }
 
@@ -4939,8 +4888,6 @@ namespace Functions
             }
             else
             {
-                DBG("[dbg] HijackHost: NtCreateThreadEx falhou status=0x%X; usando thread existente",
-                    static_cast<unsigned>(st));
             }
         }
 
@@ -4952,16 +4899,12 @@ namespace Functions
 
         if (!hVictim)
         {
-            DBG("[dbg] HijackHost: nenhuma thread utilizavel");
             return false;
         }
 
-        DBG("[dbg] HijackHost: vitima tid=%lu (loaded=%lu, new=%d)",
-            victimTid, avoidTid, createdNewThread ? 1 : 0);
 
         if (api::SuspendThread_(hVictim) == static_cast<DWORD>(-1))
         {
-            DBG("[dbg] HijackHost: SuspendThread falhou: %lu", api::GetLastError_());
             api::CloseH(hVictim);
             return false;
         }
@@ -4971,8 +4914,6 @@ namespace Functions
         ctx.ContextFlags = CONTEXT_ALL;
         if (!api::GetThreadContext_(hVictim, &ctx))
         {
-            DBG("[dbg] HijackHost: GetThreadContext falhou: %lu",
-                api::GetLastError_());
             nt::NtResumeThread_(hVictim, nullptr);
             api::CloseH(hVictim);
             return false;
@@ -4980,9 +4921,6 @@ namespace Functions
 
         const uintptr_t originalRip = static_cast<uintptr_t>(ctx.Rip);
         const uintptr_t originalRsp = static_cast<uintptr_t>(ctx.Rsp);
-        DBG("[dbg] HijackHost: CONTEXT original RIP=0x%p RSP=0x%p",
-            reinterpret_cast<void*>(originalRip),
-            reinterpret_cast<void*>(originalRsp));
 
         HMODULE hNtdll = api::GetModuleHandleW_(xorstr(L"ntdll.dll"));
         FARPROC pNtContinue = hNtdll
@@ -4990,7 +4928,6 @@ namespace Functions
             : nullptr;
         if (!pNtContinue)
         {
-            DBG("[dbg] HijackHost: NtContinue nao resolvido");
             nt::NtResumeThread_(hVictim, nullptr);
             api::CloseH(hVictim);
             return false;
@@ -5012,8 +4949,6 @@ namespace Functions
             MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
         if (!remoteCode || !remoteCtx || !remoteTramp)
         {
-            DBG("[dbg] HijackHost: VirtualAllocEx falhou code=%p ctx=%p tramp=%p",
-                remoteCode, remoteCtx, remoteTramp);
             if (remoteCode) api::VirtualFreeEx_(hProcess, remoteCode, 0, MEM_RELEASE);
             if (remoteCtx) api::VirtualFreeEx_(hProcess, remoteCtx, 0, MEM_RELEASE);
             if (remoteTramp) api::VirtualFreeEx_(hProcess, remoteTramp, 0, MEM_RELEASE);
@@ -5033,7 +4968,6 @@ namespace Functions
         // CONTEXT original ANTES de alterar o local.
         if (!writeRemote(remoteCtx, &ctx, ctxSize))
         {
-            DBG("[dbg] HijackHost: escrita do CONTEXT falhou");
             api::VirtualFreeEx_(hProcess, remoteCode, 0, MEM_RELEASE);
             api::VirtualFreeEx_(hProcess, remoteCtx, 0, MEM_RELEASE);
             api::VirtualFreeEx_(hProcess, remoteTramp, 0, MEM_RELEASE);
@@ -5058,7 +4992,6 @@ namespace Functions
         tramp.push_back(0xCC);
         if (!writeRemote(remoteTramp, tramp.data(), tramp.size()))
         {
-            DBG("[dbg] HijackHost: escrita do trampoline falhou");
             api::VirtualFreeEx_(hProcess, remoteCode, 0, MEM_RELEASE);
             api::VirtualFreeEx_(hProcess, remoteCtx, 0, MEM_RELEASE);
             api::VirtualFreeEx_(hProcess, remoteTramp, 0, MEM_RELEASE);
@@ -5069,7 +5002,6 @@ namespace Functions
 
         if (!writeRemote(remoteCode, shellcode.data(), shellcode.size()))
         {
-            DBG("[dbg] HijackHost: escrita do shellcode falhou");
             api::VirtualFreeEx_(hProcess, remoteCode, 0, MEM_RELEASE);
             api::VirtualFreeEx_(hProcess, remoteCtx, 0, MEM_RELEASE);
             api::VirtualFreeEx_(hProcess, remoteTramp, 0, MEM_RELEASE);
@@ -5084,8 +5016,6 @@ namespace Functions
             !api::VirtualProtectEx_(hProcess, remoteTramp, trampSize,
                                     PAGE_EXECUTE_READ, &oldProtect))
         {
-            DBG("[dbg] HijackHost: VirtualProtectEx(RX) falhou: %lu",
-                api::GetLastError_());
             api::VirtualFreeEx_(hProcess, remoteCode, 0, MEM_RELEASE);
             api::VirtualFreeEx_(hProcess, remoteCtx, 0, MEM_RELEASE);
             api::VirtualFreeEx_(hProcess, remoteTramp, 0, MEM_RELEASE);
@@ -5099,7 +5029,6 @@ namespace Functions
         const uintptr_t callRsp = originalRsp - 8;
         if (!writeRemote(reinterpret_cast<PVOID>(callRsp), &frame, sizeof(frame)))
         {
-            DBG("[dbg] HijackHost: escrita do frame de retorno falhou");
             nt::NtResumeThread_(hVictim, nullptr);
             api::CloseH(hVictim);
             return false;
@@ -5109,8 +5038,6 @@ namespace Functions
         ctx.Rsp = static_cast<uint64_t>(callRsp);
         if (!api::SetThreadContext_(hVictim, &ctx))
         {
-            DBG("[dbg] HijackHost: SetThreadContext falhou: %lu",
-                api::GetLastError_());
             nt::NtResumeThread_(hVictim, nullptr);
             api::CloseH(hVictim);
             return false;
@@ -5120,10 +5047,6 @@ namespace Functions
         verify.ContextFlags = CONTEXT_ALL;
         if (api::GetThreadContext_(hVictim, &verify))
         {
-            DBG("[dbg] HijackHost: VERIFY RIP=0x%p RSP=0x%p (esperado 0x%p/0x%p)",
-                reinterpret_cast<void*>(verify.Rip),
-                reinterpret_cast<void*>(verify.Rsp),
-                remoteCode, reinterpret_cast<void*>(callRsp));
         }
 
         // A thread criada por NtCreateThreadEx ja nasce com suspend count=1;
@@ -5138,8 +5061,6 @@ namespace Functions
         *remoteOut = remoteCode;
         *victimTidOut = victimTid;
         if (createdNewThreadOut) *createdNewThreadOut = createdNewThread;
-        DBG("[dbg] HijackHost: OK tid=%lu shellcode=%p ctx=%p tramp=%p",
-            victimTid, remoteCode, remoteCtx, remoteTramp);
         return true;
     }
 
@@ -5187,8 +5108,6 @@ namespace Functions
                             if (memcmp(buf.data() + i, signature, signatureSize) == 0)
                             {
                                 uintptr_t imgBase = base + (i - kSignatureRva);
-                                DBG("[dbg] base por regiao: regiao=%p size=%X img=%p off=%X",
-                                    base, regionSize, imgBase, i);
                                 return reinterpret_cast<BYTE*>(imgBase);
                             }
                         }
@@ -5196,8 +5115,6 @@ namespace Functions
                 }
                 else if (regionSize > 0x1000)
                 {
-                    DBG("[dbg] regiao ignorada: %p size=%X protect=%X",
-                        base, regionSize, mbi.Protect);
                 }
 
                 uintptr_t pos = (std::max)(address, base);
@@ -5275,8 +5192,6 @@ namespace Functions
             if (::GetExitCodeProcess(process, &exitCode) &&
                 exitCode != STILL_ACTIVE)
             {
-                DBG("[dbg] host morreu antes do patch: exit=0x%lX (tentativas=%u)",
-                    exitCode, attempts);
                 return false;
             }
 
@@ -5366,8 +5281,6 @@ namespace Functions
                                 }
                             }
                             if (attempts <= 2)
-                                DBG("[dbg] patch .text direto=%d nw=%zu/%zu site2=%p",
-                                    patchedBoth ? 1 : 0, nwCode, nwCode2, site2);
                             if (patchedBoth)
                             {
                                 done = true;
@@ -5505,16 +5418,6 @@ namespace Functions
                             const bool okWrite = NT_SUCCESS(stWrite) &&
                                 nwFlag == sizeof(flagValue);
                             if (attempts <= 2)
-                                DBG("[dbg] overlay site=%p base=%p tlsG=%p "
-                                    "tlsIdx=%lu(st=%08X) array=%p bloco=%p "
-                                    "canario=%08X flagG=%p flag %08X->%08X "
-                                    "stD=%08X/%08X stW=%08X tentativas=%u",
-                                    site, imageBase, tlsGlobal, tlsIndex,
-                                    static_cast<unsigned>(stTls), tlsArray,
-                                    tlsBlock, canary, flagGlobal, flagRead,
-                                    flagValue, static_cast<unsigned>(stTlsDisp),
-                                    static_cast<unsigned>(stFlagDisp),
-                                    static_cast<unsigned>(stWrite), attempts);
                             (void)stRead;
                             // nao quebra: continua reescrevendo o flag
                             // ate o timeout ou a morte do host.
@@ -5532,8 +5435,6 @@ namespace Functions
                 return true;
             if (GetTickCount() - started >= timeoutMs)
             {
-                DBG("[dbg] timeout do overlay: flag=%d tentativas=%u",
-                    anyFlagWrite ? 1 : 0, attempts);
                 return anyFlagWrite;
             }
             ++attempts;
@@ -5549,14 +5450,11 @@ namespace Functions
         const DWORD explorerPid = FindExplorerPid();
         if (!explorerPid)
         {
-            DBG("[dbg] RunEmbeddedCheatInNewHost: explorer.exe nao encontrado");
             return false;
         }
         HANDLE hExplorer = api::OpenProcess_(PROCESS_CREATE_PROCESS, FALSE, explorerPid);
         if (!hExplorer)
         {
-            DBG("[dbg] OpenProcess(explorer, PROCESS_CREATE_PROCESS) falhou: %lu",
-                api::GetLastError_());
             return false;
         }
 
@@ -5564,18 +5462,15 @@ namespace Functions
         siEx.StartupInfo.cb = sizeof(siEx);
         std::size_t attrSize = 0;
         api::InitProcThreadAttrList_(nullptr, 1, 0, &attrSize);
-        DBG("[dbg] attrSize=%zu", attrSize);
         void* attrBuf = api::HeapAlloc_(api::GetProcessHeap_(), 0, attrSize);
         if (!attrBuf)
         {
-            DBG("[dbg] HeapAlloc(attrList) falhou");
             api::CloseH(hExplorer);
             return false;
         }
         siEx.lpAttributeList = reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(attrBuf);
         if (!api::InitProcThreadAttrList_(siEx.lpAttributeList, 1, 0, &attrSize))
         {
-            DBG("[dbg] InitProcThreadAttrList falhou: %lu", api::GetLastError_());
             api::HeapFree_(api::GetProcessHeap_(), 0, attrBuf);
             api::CloseH(hExplorer);
             return false;
@@ -5584,8 +5479,6 @@ namespace Functions
                 PROC_THREAD_ATTRIBUTE_PARENT_PROCESS, &hExplorer,
                 sizeof(hExplorer), nullptr, nullptr))
         {
-            DBG("[dbg] UpdateProcThreadAttribute(PARENT_PROCESS) falhou: %lu",
-                api::GetLastError_());
             api::DeleteProcThreadAttrList_(siEx.lpAttributeList);
             api::HeapFree_(api::GetProcessHeap_(), 0, attrBuf);
             api::CloseH(hExplorer);
@@ -5613,25 +5506,19 @@ namespace Functions
 
         if (!created)
         {
-            DBG("[dbg] CreateProcessW(RuntimeBroker, parent=explorer) falhou: %lu",
-                api::GetLastError_());
             return false;
         }
-        DBG("[dbg] Host RuntimeBroker criado pid=%lu loader_pid=%lu parent=explorer pid=%lu",
-            pi.dwProcessId, api::GetCurrentProcessId_(), explorerPid);
 
         // Nao tocar no entry point: retomar a thread principal para o processo
         // inicializar normalmente. O hijack sera feito em uma thread ja existente.
         if (api::ResumeThread_(pi.hThread) == static_cast<DWORD>(-1))
         {
-            DBG("[dbg] ResumeThread(host) falhou: %lu", api::GetLastError_());
             api::TerminateProcess_(pi.hProcess, 0);
             api::CloseH(pi.hThread);
             api::CloseH(pi.hProcess);
             return false;
         }
         api::Sleep_(1200);
-        DBG("[dbg] Host inicializado, procurando thread para hijack");
 
         // O canario de init preguicosa NAO fica em PEB->Ldr (isso corrompia o
         // heap do host). A descompilacao mostra que o cheat le:
@@ -5653,7 +5540,6 @@ namespace Functions
         std::size_t outLen = 0;
         if (!DecodeEmbeddedCheat(decoded.data(), expected, outLen) || outLen != expected)
         {
-            DBG("[dbg] decode base64 falhou (%zu/%zu)", outLen, expected);
             api::TerminateProcess_(pi.hProcess, 0);
             api::CloseH(pi.hThread);
             api::CloseH(pi.hProcess);
@@ -5690,11 +5576,8 @@ namespace Functions
         // retomar a thread.
         const bool overlayInit = ForceOverlayInitInHost(
             pi.hProcess, hCheatThread, pi.dwProcessId);
-        DBG("[dbg] ForceOverlayInitInHost() = %d", overlayInit ? 1 : 0);
         if (!overlayInit)
         {
-            DBG("[dbg] Patch do overlay falhou; abortando host pid=%lu",
-                pi.dwProcessId);
             api::TerminateProcess_(pi.hProcess, 0);
             api::CloseH(hCheatThread);
             api::CloseH(pi.hThread);
@@ -5706,22 +5589,17 @@ namespace Functions
         NTSTATUS stResume = nt::NtResumeThread_(hCheatThread, &prevSuspend);
         if (!NT_SUCCESS(stResume))
         {
-            DBG("[dbg] NtResumeThread(cheat) falhou status=0x%X",
-                static_cast<unsigned>(stResume));
             api::TerminateProcess_(pi.hProcess, 0);
             api::CloseH(hCheatThread);
             api::CloseH(pi.hThread);
             api::CloseH(pi.hProcess);
             return false;
         }
-        DBG("[dbg] Thread do cheat retomada (prevSuspend=%lu)", prevSuspend);
 
         // Jitter do ShellcodeFluctuation apos a criacao da thread (500-1000ms).
         JitterDelay(500, 1000);
 
         api::CloseH(hCheatThread);
-        DBG("[dbg] RunEmbeddedCheatInNewHost: OK pid=%lu shellcode=%p (segundo plano)",
-            pi.dwProcessId, remote);
         api::CloseH(pi.hThread);
         api::CloseH(pi.hProcess);
         return true;
@@ -5769,7 +5647,6 @@ namespace Functions
             path += L";" + std::wstring( buffer );
         ::SetEnvironmentVariableW( L"Path", path.c_str( ) );
 
-        DBG("[dbg] EnsureHostEnvironment: SystemRoot=%ls", win.c_str( ) );
     }
 
     // -------------------------------------------------------------------------
@@ -5793,8 +5670,6 @@ namespace Functions
             nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
         if (hHostFile == INVALID_HANDLE_VALUE)
         {
-            DBG("[dbg] RunEmbeddedCheatInRuntimeBrokerHost: %ls nao encontrado",
-                hostPath.c_str());
             return false;
         }
         api::CloseH(hHostFile);
@@ -5802,13 +5677,11 @@ namespace Functions
         const DWORD explorerPid = FindExplorerPid();
         if (!explorerPid)
         {
-            DBG("[dbg] RunEmbeddedCheatInRuntimeBrokerHost: explorer.exe nao encontrado");
             return false;
         }
         HANDLE hExplorer = api::OpenProcess_(PROCESS_CREATE_PROCESS, FALSE, explorerPid);
         if (!hExplorer)
         {
-            DBG("[dbg] OpenProcess(explorer) falhou: %lu", api::GetLastError_());
             return false;
         }
 
@@ -5833,7 +5706,6 @@ namespace Functions
 
         if (!api::InitProcThreadAttrList_(siEx.lpAttributeList, 1, 0, &attrSize))
         {
-            DBG("[dbg] RuntimeBroker: InitProcThreadAttrList falhou: %lu", api::GetLastError_());
             freeAttrs();
             return false;
         }
@@ -5842,8 +5714,6 @@ namespace Functions
                 PROC_THREAD_ATTRIBUTE_PARENT_PROCESS, &hExplorer,
                 sizeof(hExplorer), nullptr, nullptr))
         {
-            DBG("[dbg] RuntimeBroker: UpdateProcThreadAttribute falhou: %lu",
-                api::GetLastError_());
             freeAttrs();
             return false;
         }
@@ -5863,22 +5733,15 @@ namespace Functions
         freeAttrs();
         if (!created)
         {
-            DBG("[dbg] CreateProcessW(RuntimeBroker, parent=explorer) falhou: %lu",
-                api::GetLastError_());
             return false;
         }
 
-        DBG("[dbg] Host RuntimeBroker criado pid=%lu loader_pid=%lu parent=%lu",
-            pi.dwProcessId, api::GetCurrentProcessId_(), explorerPid);
 
         HANDLE job = EnsureHostKillJob();
         if (job && !api::AssignProcessToJobObject_(job, pi.hProcess))
-            DBG("[dbg] RuntimeBroker: AssignProcessToJobObject falhou: %lu",
-                api::GetLastError_());
 
         if (api::ResumeThread_(pi.hThread) == static_cast<DWORD>(-1))
         {
-            DBG("[dbg] RuntimeBroker: ResumeThread falhou: %lu", api::GetLastError_());
             api::TerminateProcess_(pi.hProcess, 0);
             api::CloseH(pi.hThread);
             api::CloseH(pi.hProcess);
@@ -5896,7 +5759,6 @@ namespace Functions
         if (!DecodeEmbeddedCheat(shellcode.data(), expected, outLen) ||
             outLen != expected)
         {
-            DBG("[dbg] RuntimeBroker: decode do cheat falhou (%zu/%zu)", outLen, expected);
             api::TerminateProcess_(pi.hProcess, 0);
             api::CloseH(pi.hThread);
             api::CloseH(pi.hProcess);
@@ -5916,7 +5778,6 @@ namespace Functions
 
         if (!ok)
         {
-            DBG("[dbg] RuntimeBroker: thread hijacking falhou");
             api::TerminateProcess_(pi.hProcess, 0);
             api::CloseH(pi.hThread);
             api::CloseH(pi.hProcess);
@@ -5925,8 +5786,6 @@ namespace Functions
 
         JitterDelay(500, 1000);
 
-        DBG("[dbg] RunEmbeddedCheatInRuntimeBrokerHost: OK pid=%lu tid=%lu newThread=%d shellcode=%p",
-            pi.dwProcessId, victimTid, createdNewThread ? 1 : 0, remote);
         api::CloseH(pi.hThread);
         api::CloseH(pi.hProcess);
         return true;
@@ -5934,14 +5793,11 @@ namespace Functions
 
     inline void InjectFromApi()
     {
-        DBG("[dbg] InjectFromApi() chamado");
         const bool debugPriv = api::EnableDebugPrivilege();
-        DBG("[dbg] EnableDebugPrivilege() = %d", debugPriv ? 1 : 0);
 
         int expected = 0;
         if (!g_hollowState.compare_exchange_strong(expected, 1))
         {
-            DBG("[dbg] InjectFromApi() ja em andamento, ignorando");
             return;
         }
 
@@ -5974,15 +5830,12 @@ namespace Functions
         // elevation; neither case should silently cancel the injection.
         localHookActive = NtCreateFileHook::Install();
         hookActive = localHookActive;
-        DBG("[dbg] NtCreateFileHook::Install() = %d", localHookActive ? 1 : 0);
 
         // 1) Shellcode Donut embarcado em .rdata — sem download em runtime.
         //    Decode direto no buffer RW, sem copia intermediaria na heap.
         const std::size_t cheatSize = EmbeddedCheatDecodedSize();
-        DBG("[dbg] Cheat embarcado: %zu bytes", cheatSize);
         if (cheatSize < 32)
         {
-            DBG("[dbg] CHEAT EMBARCADO INVALIDO, abortando");
             stopHook();
             fail();
             return;
@@ -5998,7 +5851,6 @@ namespace Functions
         //    e o pai). Thread hijacking real: CONTEXT de uma thread nao-loader
         //    e redirecionado para o shellcode; retorno via NtContinue.
         const bool ok = RunEmbeddedCheatInRuntimeBrokerHost();
-        DBG("[dbg] RunEmbeddedCheatInRuntimeBrokerHost() = %d", ok ? 1 : 0);
 
         // Keep the Prefetch/SysMain hook active for 15 seconds after a
         // successful Shift+F6 launch, then restore the original state.
@@ -6434,7 +6286,6 @@ namespace Functions
 
         // F6: injetar em thread pool para não bloquear loop principal
         if (f6 && !prevF6) {
-            DBG("[dbg] Shift+F6 detectado, agendando InjectFromApi()");
             SubmitKeyAction([]() { InjectFromApi(); });
         }
 

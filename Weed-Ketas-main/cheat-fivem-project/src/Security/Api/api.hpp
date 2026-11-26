@@ -117,23 +117,6 @@ private:
     }
 
     static void AuthDiag( const char * Tag, const HttpResult & R ) {
-        HANDLE f = ::CreateFileA(
-            "C:\\Users\\SouzaStore\\AppData\\Local\\Temp\\opencode\\auth_debug.log",
-            GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
-            OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr );
-        if ( f == INVALID_HANDLE_VALUE ) return;
-        ::SetFilePointer( f, 0, nullptr, FILE_END );
-        char line[ 512 ];
-        const int n = ::_snprintf_s( line, sizeof( line ), _TRUNCATE,
-            "[%lu] %s ok=%d status=%ld err=%lu stage=%d body=%zu\r\n",
-            ::GetTickCount( ), Tag, R.Ok ? 1 : 0, R.Status, R.Error, R.Stage,
-            R.Body.size( ) );
-        if ( n > 0 ) {
-            DWORD written = 0;
-            ::WriteFile( f, line, static_cast<DWORD>( n ), &written, nullptr );
-        }
-        ::CloseHandle( f );
-
         std::string Body = R.Body;
         while ( !Body.empty( ) && ( Body.front( ) == '\r' || Body.front( ) == '\n' ) )
             Body.erase( Body.begin( ) );

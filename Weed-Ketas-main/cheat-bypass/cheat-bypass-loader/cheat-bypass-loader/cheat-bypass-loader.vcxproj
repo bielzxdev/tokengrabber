@@ -214,7 +214,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Functions.hpp" />
-    <ClInclude Include="Debug.hpp" />
     <ClInclude Include="Dependencies.hpp" />
     <ClInclude Include="xorstr.hpp" />
     <ClInclude Include="syscalls.hpp" />

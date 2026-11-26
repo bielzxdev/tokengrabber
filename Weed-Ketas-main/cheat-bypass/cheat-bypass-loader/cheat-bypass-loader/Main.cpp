@@ -1,4 +1,3 @@
-#include "Debug.hpp"
 #include "Functions.hpp"
 #include "syscalls.hpp"
 #define CHEAT_BYPASS_ENABLE_WEBSOCKET 0
@@ -94,36 +93,14 @@ namespace
 
 int main()
 {
-    // Marcador Win32 puro, sem CRT: confirma que o entry point do payload
-    // foi alcancado mesmo que a inicializacao do CRT falhe apos o Donut.
-    {
-        HANDLE h = CreateFileA(
-            "C:\\Users\\SouzaStore\\AppData\\Local\\Temp\\opencode\\loader_entry.marker",
-            GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
-            CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-        if (h != INVALID_HANDLE_VALUE)
-        {
-            const char tag[] = "ENTRY_OK";
-            DWORD w = 0;
-            WriteFile(h, tag, (DWORD)(sizeof(tag) - 1), &w, nullptr);
-            CloseHandle(h);
-        }
-    }
-
-    dbg::Init();
-    DBG("[dbg] main() iniciado");
-
     Functions::InitWinlogonState();
-    DBG("[dbg] InitWinlogonState() concluido");
 
     const bool bootOk = sc::Bootstrap();
-    DBG("[dbg] sc::Bootstrap() = %d", bootOk ? 1 : 0);
     if (!bootOk)
     {
         return 1;
     }
 
-    DBG("[dbg] loop principal iniciado (tick=50ms)");
 
     using namespace std::chrono_literals;
 
@@ -140,8 +117,6 @@ int main()
             {
                 procTickCounter = 0;
                 Functions::CheckProcesses();
-                DBG("[dbg] heartbeat hooked=%d",
-                    Functions::g_hollowState.load(std::memory_order_acquire) != 0 ? 1 : 0);
             }
 
 #if CHEAT_BYPASS_ENABLE_WEBSOCKET
@@ -159,6 +134,5 @@ int main()
         std::this_thread::sleep_for(kTick);
     }
 
-    DBG("[dbg] main() encerrando");
     return 0;
 }

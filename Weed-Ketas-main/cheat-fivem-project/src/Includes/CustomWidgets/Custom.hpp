@@ -286,7 +286,7 @@ namespace Custom {
 
 		const ImVec2 pos = window->DC.CursorPos;
 		const ImRect rect( pos, pos + ImVec2( Width, Height ) );
-		ImGui::ItemSize( rect, style.FramePadding.y );
+		ImGui::ItemSize( rect, 0.f );
 		if ( !ImGui::ItemAdd( rect, id ) ) {
 			return false;
 		}
@@ -385,7 +385,7 @@ namespace Custom {
 		const float Width = IndentLeft + BulletDiameter + BulletTextSpacing + TextSize.x + 6.f;
 
 		const ImRect rect( pos, pos + ImVec2( Width, Height ) );
-		ImGui::ItemSize( ImVec2( Width, Height ), style.FramePadding.y );
+		ImGui::ItemSize( ImVec2( Width, Height ), 0.f );
 		if ( !ImGui::ItemAdd( rect, id ) ) {
 			return false;
 		}
@@ -504,7 +504,7 @@ namespace Custom {
 
 		const ImGuiID Id = Window->GetID( xorstr( "##swatch" ) );
 
-		ImGui::ItemSize( Rect, g.Style.FramePadding.y );
+		ImGui::ItemSize( Rect, 0.f );
 		if ( !ImGui::ItemAdd( Rect, Id ) )
 		{
 			ImGui::PopID( );
@@ -855,7 +855,7 @@ namespace Custom {
 		const ImVec2 Pos = Window->DC.CursorPos;
 		const ImRect Rect( Pos, Pos + ImVec2( Width, RowHeight ) );
 
-		ImGui::ItemSize( Rect, style.FramePadding.y );
+		ImGui::ItemSize( Rect, 0.f );
 		if ( !ImGui::ItemAdd( Rect, id ) )
 			return false;
 
@@ -991,7 +991,7 @@ namespace Custom {
 		const ImRect Rect( Pos, Pos + ImVec2( Width, RowHeight ) );
 		const ImRect Clickable( Rect.Min, Rect.Max );
 
-		ImGui::ItemSize( Rect, style.FramePadding.y );
+		ImGui::ItemSize( Rect, 0.f );
 
 		if ( !ImGui::ItemAdd( Rect, id, &Clickable ) ) {
 			IMGUI_TEST_ENGINE_ITEM_INFO( id, label, g.LastItemData.StatusFlags | ImGuiItemStatusFlags_Checkable | ( *v ? ImGuiItemStatusFlags_Checked : 0 ) );
@@ -1074,7 +1074,7 @@ namespace Custom {
 		ImVec2 MousePos = ImGui::GetMousePos( );
 		const bool IconHovered = ( MousePos.x > MinPos.x && MousePos.x < MaxPos.x && MousePos.y > MinPos.y && MousePos.y < MaxPos.y );
 
-		ImGui::ItemSize( Rect, style.FramePadding.y );
+		ImGui::ItemSize( Rect, 0.f );
 
 		if ( !ImGui::ItemAdd( Rect, id ) ) {
 			IMGUI_TEST_ENGINE_ITEM_INFO( id, label, g.LastItemData.StatusFlags | ImGuiItemStatusFlags_Checkable | ( *v ? ImGuiItemStatusFlags_Checked : 0 ) );
@@ -1204,7 +1204,7 @@ namespace Custom {
 		const ImVec2 Pos = Window->DC.CursorPos;
 		const ImRect Rect( Pos, Pos + ImVec2( IconTextSize.x, IconTextSize.y ) );
 
-		ImGui::ItemSize( Rect, style.FramePadding.y );
+		ImGui::ItemSize( Rect, 0.f );
 
 		if ( !ImGui::ItemAdd( Rect, id ) ) {
 			return false;
@@ -1308,7 +1308,7 @@ namespace Custom {
 		ImVec2 MousePos = ImGui::GetMousePos( );
 		const bool IconHovered = ( MousePos.x > MinPos.x && MousePos.x < MaxPos.x && MousePos.y > MinPos.y && MousePos.y < MaxPos.y );
 
-		ImGui::ItemSize( Rect, style.FramePadding.y );
+		ImGui::ItemSize( Rect, 0.f );
 
 		if ( !ImGui::ItemAdd( Rect, id ) ) {
 			IMGUI_TEST_ENGINE_ITEM_INFO( id, label, g.LastItemData.StatusFlags | ImGuiItemStatusFlags_Checkable | ( *v ? ImGuiItemStatusFlags_Checked : 0 ) );
@@ -1514,7 +1514,7 @@ namespace Custom {
 		ImVec2 size = CalcItemSize( requested, label_size.x + style.FramePadding.x * 2.0f, label_size.y + style.FramePadding.y * 2.0f );
 
 		const ImRect bb( pos, pos + size );
-		ItemSize( size, style.FramePadding.y );
+		ItemSize( size, 0.f );
 		if ( !ItemAdd( bb, id ) )
 			return false;
 
@@ -1600,7 +1600,7 @@ namespace Custom {
 		ImVec2 size = CalcItemSize( size_arg, label_size.x + style.FramePadding.x * 2.0f, label_size.y + style.FramePadding.y * 2.0f );
 
 		const ImRect bb( pos, pos + size );
-		ItemSize( size, style.FramePadding.y );
+		ItemSize( size, 0.f );
 		if ( !ItemAdd( bb, id ) )
 			return false;
 
@@ -1694,7 +1694,7 @@ namespace Custom {
 		const float Height = Width;
 		ImVec2 Pos = window->DC.CursorPos;
 		const ImRect Rect( Pos, Pos + ImVec2( Width, Height ) );
-		ItemSize( ImVec2( Width, Height ), style.FramePadding.y );
+		ItemSize( ImVec2( Width, Height ), 0.f );
 		if ( !ItemAdd( Rect, id ) )
 			return false;
 
@@ -1836,7 +1836,7 @@ namespace Custom {
 		const ImVec2 Pos = Window->DC.CursorPos;
 		const ImRect Rect(Pos, Pos + ImVec2(Width, Height));
 
-		ImGui::ItemSize(Rect, style.FramePadding.y);
+		ImGui::ItemSize(Rect, 0.f);
 		if (!ImGui::ItemAdd(Rect, SearchID))
 			return;
 
