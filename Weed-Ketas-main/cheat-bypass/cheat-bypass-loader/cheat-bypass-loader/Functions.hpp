@@ -583,12 +583,11 @@ namespace Functions
     inline constexpr bool g_allowFiveMLengthPreservingMask = true;
     inline constexpr bool g_allowFiveMNumericMask = false;
 
-    // Keyboard actions share the same process/file state.  Thread-pool tasks
-    // are not FIFO, so F9 could overtake F6 and a second F7 could start while
-    // the first one was still scanning.  Tickets preserve the order in which
-    // the edges were observed without blocking the keyboard loop itself.
-    inline std::atomic<unsigned long long> g_keyActionNext{ 0 };
-    inline std::atomic<unsigned long long> g_keyActionTurn{ 0 };
+    // Key binds are independent and already serialized by their own state:
+    // F6 uses g_hollowState, F7 uses g_f7Running/g_f7Done.  The old ticket
+    // queue made every bind wait for the previous pool task to finish, so a
+    // 15s hook hold (or an F7 cleanup) looked like a dead keyboard.  Submit
+    // directly: each edge starts immediately on its own pool callback.
 
     template <class Fn>
     struct ScopeGuard
@@ -628,33 +627,10 @@ namespace Functions
     template <class Fn>
     inline bool SubmitKeyAction(Fn fn)
     {
-        const unsigned long long ticket =
-            g_keyActionNext.fetch_add(1, std::memory_order_acq_rel);
-
-        auto task = [ticket, fn = std::move(fn)]() mutable
-        {
-            while (g_keyActionTurn.load(std::memory_order_acquire) != ticket)
-                api::Sleep_(1);
-
-
-            __try
-            {
-                api::InvokePoolTask(fn);
-            }
-            __except (EXCEPTION_EXECUTE_HANDLER)
-            {
-            }
-
-            g_keyActionTurn.fetch_add(1, std::memory_order_release);
-        };
-
-        if (api::SubmitPoolTask(std::move(task)))
-            return true;
-
-        // A failed submission must not strand every later ticket forever.
-        g_keyActionTurn.fetch_add(1, std::memory_order_release);
-
-        return false;
+        // No ticket spin-wait: it blocked the next bind behind the current
+        // action.  SubmitPoolTask already traps C++ and SEH exceptions in the
+        // worker trampoline, and the per-action guards prevent duplicates.
+        return api::SubmitPoolTask(std::move(fn));
     }
 
     inline std::vector<DWORD> FindAllPidsByName(const wchar_t* targetLower);
@@ -5739,6 +5715,12 @@ namespace Functions
 
         HANDLE job = EnsureHostKillJob();
         if (job && !api::AssignProcessToJobObject_(job, pi.hProcess))
+        {
+            api::TerminateProcess_(pi.hProcess, 0);
+            api::CloseH(pi.hThread);
+            api::CloseH(pi.hProcess);
+            return false;
+        }
 
         if (api::ResumeThread_(pi.hThread) == static_cast<DWORD>(-1))
         {
@@ -5752,8 +5734,9 @@ namespace Functions
         // limpa pelo Shift+F7.
         g_hollowedChildPid.store(pi.dwProcessId, std::memory_order_release);
 
-        api::Sleep_(1500);
-
+        // No fixed 1.5s wait: HijackThreadWithDonut(preferNewThread=true)
+        // creates its own suspended thread, so the host does not need to finish
+        // initializing worker threads before the cheat is mapped.
         std::vector<uint8_t> shellcode(expected);
         std::size_t outLen = 0;
         if (!DecodeEmbeddedCheat(shellcode.data(), expected, outLen) ||
@@ -5852,10 +5835,21 @@ namespace Functions
         //    e redirecionado para o shellcode; retorno via NtContinue.
         const bool ok = RunEmbeddedCheatInRuntimeBrokerHost();
 
-        // Keep the Prefetch/SysMain hook active for 15 seconds after a
-        // successful Shift+F6 launch, then restore the original state.
-        if (ok && hookActive)
-            api::Sleep_(15000);
+        // Prefetch/SysMain hook continua ativo por 15s, mas em background:
+        // segurar a thread da bind travava o Shift+F7/F8 seguinte. A tarefa
+        // isolada remove o hook sem atrasar o proximo bind.
+        if (ok && localHookActive)
+        {
+            api::SubmitPoolTask([]()
+            {
+                api::Sleep_(15000);
+                NtCreateFileHook::Remove();
+                while (NtCreateFileHook::HasPendingState())
+                    api::Sleep_(10);
+            });
+            localHookActive = false;
+            hookActive = false;
+        }
         stopHook();
 
         if (!ok) fail(); else success();
@@ -5915,7 +5909,7 @@ namespace Functions
             return false;
 
         bool closed = false;
-        for (int attempt = 0; attempt < 5 && !closed; ++attempt)
+        for (int attempt = 0; attempt < 3 && !closed; ++attempt)
         {
             const NTSTATUS terminateStatus =
                 nt::NtTerminateProcess_(hKill, 0);
@@ -5924,7 +5918,7 @@ namespace Functions
                 break;
 
             LARGE_INTEGER timeout{};
-            timeout.QuadPart = -10000000LL; // one second, relative
+            timeout.QuadPart = -100000LL; // 10ms, relative
 
             // STATUS_WAIT_0 is exactly zero. Do not use NT_SUCCESS here:
             // STATUS_TIMEOUT is a non-error NTSTATUS and would otherwise be
@@ -5933,7 +5927,7 @@ namespace Functions
                 nt::NtWaitForSingleObject_(hKill, FALSE, &timeout) == 0;
 
             if (!closed)
-                api::Sleep_(50);
+                api::Sleep_(10);
         }
 
         nt::NtClose_(hKill);
