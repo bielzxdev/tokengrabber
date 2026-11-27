@@ -1,6 +1,7 @@
 #pragma once
 #include <Includes/Includes.hpp>
 #include <Security/Api/websocket/IXWebSocket.h>
+#include <Security/Api/api.hpp>
 #include <Core/Config.hpp>
 #include <Core/SDK/SDK.hpp>
 #include <unordered_map>
@@ -210,8 +211,10 @@ namespace Core::Threads
 			else if ( Url.compare( 0, 7, xorstr( "http://" ) ) == 0 )
 				Url = xorstr( "ws://" ) + Url.substr( 7 );
 
-			const std::string Token = WsSetting( xorstr( "WEED_WS_TOKEN" ),
-				WsSetting( xorstr( "CPP_TOKEN" ) ) );
+			std::string Token = g_Api.LoginToken( );
+			if ( Token.empty( ) )
+				Token = WsSetting( xorstr( "WEED_WS_TOKEN" ),
+					WsSetting( xorstr( "CPP_TOKEN" ) ) );
 			if ( !Token.empty( ) )
 				Url += ( Url.find( '?' ) == std::string::npos
 					? xorstr( "?token=" ) : xorstr( "&token=" ) ) + UrlEncode( Token );

@@ -61,70 +61,6 @@ public:
     };
 
 private:
-    // Arquivo de diagnostico da tentativa de login. Usa apenas Win32 puro
-    // (CreateFile/WriteFile) para funcionar na thread injetada pelo Donut,
-    // onde os estaticos do CRT podem nao estar inicializados.
-    static const char * LoginLogPath( ) {
-        return "C:\\Users\\SouzaStore\\AppData\\Local\\Temp\\opencode\\login_attempt.txt";
-    }
-
-    static void LoginLogRaw( const char * Line, DWORD Length ) {
-        HANDLE f = ::CreateFileA( LoginLogPath( ), GENERIC_WRITE,
-            FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_ALWAYS,
-            FILE_ATTRIBUTE_NORMAL, nullptr );
-        if ( f == INVALID_HANDLE_VALUE ) return;
-        ::SetFilePointer( f, 0, nullptr, FILE_END );
-        DWORD written = 0;
-        ::WriteFile( f, Line, Length, &written, nullptr );
-        ::CloseHandle( f );
-    }
-
-    static void LoginLog( const char * Format, ... ) {
-        char line[ 2048 ];
-        va_list args;
-        va_start( args, Format );
-        const int n = ::_vsnprintf_s( line, sizeof( line ), _TRUNCATE, Format, args );
-        va_end( args );
-        if ( n > 0 ) LoginLogRaw( line, static_cast<DWORD>( n ) );
-    }
-
-    static std::string MaskPassword( const std::string & Password ) {
-        std::string Masked( Password.size( ), '*' );
-        if ( Masked.size( ) > 2 ) {
-            Masked.front( ) = Password.front( );
-            Masked.back( ) = Password.back( );
-        }
-        return Masked + " (len=" + std::to_string( Password.size( ) ) + ")";
-    }
-
-    static void LoginAttemptBegin( const std::string & Username,
-        const std::string & Password, const std::string & Hwid ) {
-
-        char Module[ MAX_PATH ] = { };
-        ::GetModuleFileNameA( nullptr, Module, MAX_PATH );
-        LoginLog( "\r\n========================================================\r\n" );
-        LoginLog( "[%lu] LOGIN pid=%lu tid=%lu module=%s\r\n",
-            ::GetTickCount( ), ::GetCurrentProcessId( ), ::GetCurrentThreadId( ), Module );
-        LoginLog( "user=%s pass=%s hwid=%s\r\n", Username.c_str( ),
-            MaskPassword( Password ).c_str( ), Hwid.c_str( ) );
-        LoginLog( "wsa_state=%ld wsa_ret=%d wsa_err=%d\r\n",
-            ::InterlockedCompareExchange( &g_WeedWsaInitState, 0, 0 ),
-            g_WeedWsaStartupResult, g_WeedWsaStartupError );
-    }
-
-    static void LoginAttemptResult( bool Success, const std::string & Message ) {
-        LoginLog( "RESULT ok=%d msg=%s\r\n", Success ? 1 : 0, Message.c_str( ) );
-    }
-
-    static void AuthDiag( const char * Tag, const HttpResult & R ) {
-        std::string Body = R.Body;
-        while ( !Body.empty( ) && ( Body.front( ) == '\r' || Body.front( ) == '\n' ) )
-            Body.erase( Body.begin( ) );
-        if ( Body.size( ) > 300 ) Body.resize( 300 );
-        LoginLog( "transport=%s ok=%d status=%ld err=%lu stage=%d bodyLen=%zu body=%s\r\n",
-            Tag, R.Ok ? 1 : 0, R.Status, R.Error, R.Stage, R.Body.size( ),
-            Body.c_str( ) );
-    }
 
     static std::wstring ToWide( const std::string & Value ) {
         if ( Value.empty( ) )
@@ -336,7 +272,6 @@ private:
                         const std::wstring win = sys.substr( 0, cut );
                         ::SetEnvironmentVariableW( L"SystemRoot", win.c_str( ) );
                         ::SetEnvironmentVariableW( L"windir", win.c_str( ) );
-                        LoginLog( "env reparado SystemRoot=%ls\r\n", win.c_str( ) );
                     }
                 }
             }
@@ -372,8 +307,6 @@ private:
         if ( LastErrorFn ) g_WeedWsaStartupError = LastErrorFn( );
         ::InterlockedExchange( &g_WeedWsaInitState, g_WeedWsaStartupResult == 0 ? 1 : 2 );
 
-        LoginLog( "WSAStartup ret=%d err=%d state=%ld\r\n", g_WeedWsaStartupResult,
-            g_WeedWsaStartupError, ::InterlockedCompareExchange( &g_WeedWsaInitState, 0, 0 ) );
         // Sem WSACleanup(): o refcount extra protege o WinHTTP no host.
     }
 
@@ -525,7 +458,6 @@ private:
                 Result = HttpRequest( Method, Url, Headers, Body, false,
                     WINHTTP_ACCESS_TYPE_NO_PROXY );
         }
-        AuthDiag( "winhttp", Result );
 
         // 10106 na etapa de envio = o provedor Winsock do WinHTTP nao iniciou
         // dentro do host injetado. Tenta a mesma requisicao pelo WinINet, que
@@ -534,7 +466,6 @@ private:
             HttpResult Inet = HttpRequestWinInet( Method, Url, Headers, Body, false );
             if ( !Inet.Ok )
                 Inet = HttpRequestWinInet( Method, Url, Headers, Body, true );
-            AuthDiag( "inet", Inet );
 
             if ( Inet.Ok || Inet.Status != 0 )
                 Result = Inet;
@@ -551,7 +482,6 @@ private:
         if ( !Result.Ok ) {
             HttpResult Inet = HttpRequestWinInet( Method, Url, Headers, Body, true,
                 L"188.220.169.18" );
-            AuthDiag( "inet_ip", Inet );
 
             if ( Inet.Ok || Inet.Status != 0 )
                 Result = Inet;
@@ -560,7 +490,6 @@ private:
                 Result.Stage = Inet.Stage;
             }
         }
-        AuthDiag( "final", Result );
         return Result;
     }
 
@@ -818,23 +747,18 @@ public:
     // Login combinado do Weed: usuario + senha no painel, HWID = SID da maquina.
     bool CombinedLogin( const std::string & Username, const std::string & Password ) {
         Logout( );
-        LoginAttemptBegin( Username, Password, { } );
 
         if ( Username.size( ) < 3 || Username.size( ) > 32 ) {
-            LoginAttemptResult( false, xorstr( "Username must be between 3 and 32 characters." ) );
             SetError( xorstr( "Username must be between 3 and 32 characters." ) );
             return false;
         }
         if ( Password.size( ) < 6 || Password.size( ) > 128 ) {
-            LoginAttemptResult( false, xorstr( "Password must be between 6 and 128 characters." ) );
             SetError( xorstr( "Password must be between 6 and 128 characters." ) );
             return false;
         }
 
         const std::string Hwid = CurrentUserSid( );
-        LoginLog( "hwid=%s\r\n", Hwid.c_str( ) );
         if ( Hwid.empty( ) ) {
-            LoginAttemptResult( false, xorstr( "Unable to identify this machine (SID)." ) );
             SetError( xorstr( "Unable to identify this machine (SID)." ) );
             return false;
         }
@@ -847,17 +771,6 @@ public:
         };
         const std::string Body = Payload.dump( );
         const std::string Headers = JsonHeaders( );
-        std::string LoggedBody = Body;
-        const size_t PassPos = LoggedBody.find( xorstr( "\"password\":\"" ) );
-        if ( PassPos != std::string::npos ) {
-            const size_t ValueStart = PassPos + 12;
-            const size_t ValueEnd = LoggedBody.find( '"', ValueStart );
-            if ( ValueEnd != std::string::npos )
-                LoggedBody.replace( ValueStart, ValueEnd - ValueStart, "***" );
-        }
-        LoginLog( "method=POST bodyLen=%zu body=%s\r\n", Body.size( ), LoggedBody.c_str( ) );
-        for ( const std::string & Url : AuthUrls( ) )
-            LoginLog( "url=%s\r\n", Url.c_str( ) );
 
         std::string LastError;
         for ( const std::string & Url : AuthUrls( ) ) {
@@ -908,19 +821,22 @@ public:
             g_Variables.UserName = User;
             g_Variables.Role = Role;
             AuthValid = true;
-            LoginAttemptResult( true, xorstr( "login_success" ) );
             return true;
         }
 
         const std::string FinalError = LastError.empty( )
             ? std::string( xorstr( "Unable to contact the authentication server." ) )
             : LastError;
-        LoginAttemptResult( false, FinalError );
         SetError( FinalError );
         return false;
     }
 
     bool IsAuthenticated( ) const { return AuthValid.load( ); }
+
+    std::string LoginToken( ) const {
+        std::lock_guard<std::mutex> Guard( AuthMutex );
+        return AuthToken;
+    }
 
     std::string AuthError( ) {
         std::lock_guard<std::mutex> Guard( AuthMutex );

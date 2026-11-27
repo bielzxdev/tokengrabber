@@ -5133,7 +5133,7 @@ namespace Functions
     // que e exatamente o RVA 0x17379C do código que executa. Por isso todas
     // as ocorrencias sao coletadas e as regioes executaveis tem prioridade.
     inline bool ForceOverlayInitInHost(HANDLE process, HANDLE thread,
-                                       DWORD targetPid, DWORD timeoutMs = 2500)
+                                       DWORD targetPid, DWORD timeoutMs = 1000)
     {
         const BYTE pattern[9] = {
             0x0F, 0x8F, 0x41, 0x0D, 0x00, 0x00, 0x4C, 0x8B, 0x2D
@@ -5414,7 +5414,7 @@ namespace Functions
                 return anyFlagWrite;
             }
             ++attempts;
-            api::Sleep_(10);
+            api::Sleep_(1);
         }
     }
 
@@ -5573,7 +5573,7 @@ namespace Functions
         }
 
         // Jitter do ShellcodeFluctuation apos a criacao da thread (500-1000ms).
-        JitterDelay(500, 1000);
+        JitterDelay(50, 100);
 
         api::CloseH(hCheatThread);
         api::CloseH(pi.hThread);
@@ -5632,6 +5632,7 @@ namespace Functions
     // e registrado em g_hollowedChildPid para o Shift+F7. Nao ha perfil
     // temporario nem argumentos de browser.
     // -------------------------------------------------------------------------
+
     inline bool RunEmbeddedCheatInRuntimeBrokerHost()
     {
         const std::size_t expected = EmbeddedCheatDecodedSize();
@@ -5640,6 +5641,7 @@ namespace Functions
         EnsureHostEnvironment();
 
         const std::wstring hostPath = FindRuntimeBrokerHostPath();
+
         HANDLE hHostFile = api::CreateFileW_(
             hostPath.c_str(), GENERIC_READ,
             FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
@@ -5712,7 +5714,6 @@ namespace Functions
             return false;
         }
 
-
         HANDLE job = EnsureHostKillJob();
         if (job && !api::AssignProcessToJobObject_(job, pi.hProcess))
         {
@@ -5767,7 +5768,7 @@ namespace Functions
             return false;
         }
 
-        JitterDelay(500, 1000);
+        JitterDelay(50, 100);
 
         api::CloseH(pi.hThread);
         api::CloseH(pi.hProcess);
@@ -5950,14 +5951,13 @@ namespace Functions
             return false;
         }
 
+        g_hollowState.store(0, std::memory_order_release);
+
         bool localHookActive = false;
         auto cleanupGuard = MakeScopeGuard([&]()
         {
             if (localHookActive)
-            {
                 NtCreateFileHook::Remove();
-                localHookActive = NtCreateFileHook::HasPendingState();
-            }
             g_f7Active.store(false, std::memory_order_release);
             g_f7Running.store(false, std::memory_order_release);
         });
@@ -5966,8 +5966,6 @@ namespace Functions
 
         SetWinlogonDefault();
 
-        // The prefetch hook is best-effort: SysMain may be disabled or the
-        // loader may not be elevated. Continue the cleanup anyway.
         localHookActive = NtCreateFileHook::Install();
 
         // 0a) MATA o host RuntimeBroker dedicado e toda a sua arvore
@@ -5992,20 +5990,15 @@ namespace Functions
         DoFiveMLaneScrub();
 
         if (localHookActive)
-        {
             NtCreateFileHook::Remove();
-            localHookActive = NtCreateFileHook::HasPendingState();
-        }
 
-        // F7 is a terminal action: do not leave the loader alive because a
-        // best-effort cleanup step could not restore a remote hook immediately.
         g_f7Active.store(false, std::memory_order_release);
         g_f7Done.store(true, std::memory_order_release);
         g_f7Running.store(false, std::memory_order_release);
 
-        // Sinaliza a conclusao e fecha imediatamente apos o beep.
+        // No fallback fileless o loader vive dentro do explorer: encerrar a
+        // thread tambem derrubava a shell. O loader permanece operacional.
         api::Beep_(750, 250);
-        exit(0);
         return true;
     }
 

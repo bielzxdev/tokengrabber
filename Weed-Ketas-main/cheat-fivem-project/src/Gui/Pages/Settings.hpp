@@ -803,8 +803,8 @@ namespace Settings {
             g_StringCleanerUnloadRequested.exchange(false);
 
         if (state == StringCleanerState::Failed) {
-            // Erro no String Cleaner: encerrar sem deixar o cheat rodando.
-            ExitProcess(0);
+            // Erro no String Cleaner: fecha so o cheat, nao o processo host.
+            PostMessage(g_Variables.g_hCheatWindow, WM_CLOSE, 0, 0);
         }
         else {
             const std::string message =
@@ -818,7 +818,7 @@ namespace Settings {
         // O worker termina primeiro; somente agora o processo pode sair. Isso
         // elimina a corrida que matava a thread antes de limpar o FiveM.
         if (state == StringCleanerState::Finished && unloadRequested)
-            ExitProcess(0);
+            PostMessage(g_Variables.g_hCheatWindow, WM_CLOSE, 0, 0);
     }
 
     inline void Render() {

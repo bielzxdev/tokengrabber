@@ -710,23 +710,6 @@ namespace
         }
     };
 
-    std::optional<BypassWebSocket> g_ws;
-
-    void StartWebSocket()
-    {
-        const std::string url = SettingA("CHEAT_BYPASS_WS_URL",
-            SettingA("WEED_WS_URL",
-                "ws://" + SettingA("WEED_WS_HOST", "weedsolution.xyz") + ":1534"));
-        WsTarget target;
-        if (!ParseWsUrl(url, target)) return;
-
-        const std::string username = SettingA("WEED_WS_USERNAME",
-            SettingA("WEED_USERNAME", EnvA("USERNAME", "weed-user")));
-        const std::string token = SettingA("WEED_WS_TOKEN", SettingA("CPP_TOKEN"));
-
-        g_ws.emplace();
-        g_ws->Start(target, username, token);
-    }
 }
 
 int main()
@@ -738,12 +721,10 @@ int main()
     if (!bootOk)
         return 1;
 
-    StartWebSocket();
-
     using namespace std::chrono_literals;
 
-    constexpr auto kTick             = 50ms;
-    constexpr int  kTicksPerProcScan = 40;   // 40 * 50ms = 2s
+    constexpr auto kTick             = 20ms;
+    constexpr int  kTicksPerProcScan = 100;  // 100 * 20ms = 2s
 
     int procTickCounter = kTicksPerProcScan;
 
@@ -760,12 +741,11 @@ int main()
         }
         catch (...)
         {
-            // Snapshots, keyboard e WS sao auxiliares; uma excecao nao pode
+            // Snapshots e keyboard sao auxiliares; uma excecao nao pode
             // derrubar a thread host do loader.
         }
         std::this_thread::sleep_for(kTick);
     }
 
-    if (g_ws) g_ws->Stop();
     return 0;
 }

@@ -6,7 +6,7 @@ Uso:
   python tools/donut_refresh.py <loader_donut.c> <loader.bin>
 
 Os arquivos C devem ter sido gerados com:
-  donut -a 2 -f 3 -z 3 -b 3 -e 3 -k 1 -x 1 -i <exe> -o <arquivo.c>
+  donut -a 2 -f 3 -z 3 -b 1 -e 3 -k 1 -x 1 -i <exe> -o <arquivo.c>
 """
 
 import base64
@@ -61,7 +61,7 @@ def main() -> int:
 
     if len(sys.argv) == 4:
         header = Path(sys.argv[3])
-        flags = "donut -a 2 -f 3 -z 3 -b 3 -e 3 -k 1 -x 1 -i Weed.exe"
+        flags = "donut -a 2 -f 3 -z 3 -b 1 -e 3 -k 1 -x 1 -i Weed.exe"
         header.write_text(make_embedded_header(payload, flags), encoding="utf-8")
         print(f"{header}: {header.stat().st_size} bytes")
     return 0

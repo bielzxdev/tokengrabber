@@ -167,9 +167,9 @@ namespace Gui
 			return;
 		}
 
-		SetLayeredWindowAttributes(g_Variables.g_hCheatWindow, RGB(0, 0, 0), 255, LWA_ALPHA);
-		MARGINS Margin = { g_Variables.g_vGameWindowPos.x, g_Variables.g_vGameWindowPos.y, g_Variables.g_vGameWindowSize.x, g_Variables.g_vGameWindowSize.y };
-		DwmExtendFrameIntoClientArea(g_Variables.g_hCheatWindow, &Margin);
+		// LWA_ALPHA com 255 ignora o canal alpha do OpenGL e deixa o overlay
+		// opaco (tela preta). Color key em preto transparency o clear do GL.
+		SetLayeredWindowAttributes(g_Variables.g_hCheatWindow, RGB(0, 0, 0), 0, LWA_COLORKEY);
 
 		if (!CreateContext(g_Variables.g_hCheatWindow))
 		{
@@ -271,7 +271,7 @@ namespace Gui
 
 			{
 				ImGui::PushStyleVar(ImGuiStyleVar_Alpha, BgAlpha);
-				ImGui::GetBackgroundDrawList()->AddRectFilled(ImVec2(0, 0), ImVec2(g_Variables.g_vGameWindowSize.x, g_Variables.g_vGameWindowSize.y), ImColor(0.f, 0.f, 0.f, BgAlpha >= 0.4f ? 0.4f : BgAlpha));
+				ImGui::GetBackgroundDrawList()->AddRectFilled(ImVec2(0, 0), ImVec2(g_Variables.g_vGameWindowSize.x, g_Variables.g_vGameWindowSize.y), ImColor(0.02f, 0.02f, 0.02f, BgAlpha >= 0.4f ? 0.4f : BgAlpha));
 				Gui::Rendering();
 				ImGui::PopStyleVar();
 
