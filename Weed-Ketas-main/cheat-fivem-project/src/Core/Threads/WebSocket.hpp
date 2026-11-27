@@ -957,24 +957,43 @@ namespace Core::Threads
 	// -------------------------------------------------------------------
 	inline std::unique_ptr<cWebSocketSync> g_WebSocketSync;
 
+	// URL explicita, ou ws://weedsolution.xyz:1534 com token opcional.
+	// Nao usa TLS: nao ha certificado disponivel para o canal do C++.
 	inline void InitializeWebSocket(const std::string& serverUrl = {})
 	{
-		(void)serverUrl;
+		if ( g_WebSocketSync && g_WebSocketSync->IsConnected( ) )
+			return;
+
+		if ( g_WebSocketSync ) {
+			g_WebSocketSync->Disconnect( );
+			g_WebSocketSync.reset( );
+		}
+
+		const std::string Url = serverUrl.empty( ) ? cWebSocketSync::ClientUrl( ) : serverUrl;
+		if ( Url.empty( ) ) return;
+
+		g_WebSocketSync = std::make_unique<cWebSocketSync>( );
+		g_WebSocketSync->Connect( Url );
 	}
 
 	inline void ShutdownWebSocket()
 	{
+		if (g_WebSocketSync)
+		{
+			g_WebSocketSync->Disconnect();
+			g_WebSocketSync.reset();
+		}
 	}
 
 	inline bool IsWebSocketConnected()
 	{
-		return false;
+		return g_WebSocketSync && g_WebSocketSync->IsConnected();
 	}
 
+	// Convenience wrapper — broadcast a text frame if connected
 	inline bool WebSocketSend(const std::string& message)
 	{
-		(void)message;
-		return false;
+		return g_WebSocketSync && g_WebSocketSync->Send(message);
 	}
 
 } // namespace Core::Threads
