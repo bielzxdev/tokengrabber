@@ -271,7 +271,6 @@ namespace Gui
 
 			{
 				ImGui::PushStyleVar(ImGuiStyleVar_Alpha, BgAlpha);
-				ImGui::GetBackgroundDrawList()->AddRectFilled(ImVec2(0, 0), ImVec2(g_Variables.g_vGameWindowSize.x, g_Variables.g_vGameWindowSize.y), ImColor(0.02f, 0.02f, 0.02f, BgAlpha >= 0.4f ? 0.4f : BgAlpha));
 				Gui::Rendering();
 				ImGui::PopStyleVar();
 
