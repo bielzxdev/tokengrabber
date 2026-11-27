@@ -15,6 +15,16 @@
 
 #define FULLSCREEN_EX
 
+	static void ClickTrace( const char* Tag )
+	{
+		FILE* File = nullptr;
+		if ( _wfopen_s( &File, L"C:\\Users\\SouzaStore\\AppData\\Local\\Temp\\opencode\\click_trace.txt", L"a" ) == 0 && File )
+		{
+			_ftprintf( File, _T( "%llu %s\n" ), GetTickCount64( ), Tag );
+			fclose( File );
+		}
+	}
+
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam );
 
 namespace Gui
@@ -230,6 +240,7 @@ namespace Gui
 		bool firstFrame = true;
 		while (Message.message != WM_QUIT)
 		{
+			const ULONGLONG FrameStart = GetTickCount64( );
 			if (PeekMessage(&Message, g_Variables.g_hCheatWindow, 0, 0, PM_REMOVE)) {
 				TranslateMessage(&Message);
 				DispatchMessage(&Message);
@@ -308,6 +319,14 @@ namespace Gui
 
 			GLX::SetVSync( g_Config.General->VSync );
 			g_GLSurface.Present();
+
+			const ULONGLONG FrameMs = GetTickCount64( ) - FrameStart;
+			if ( FrameMs > 80 )
+			{
+				char Buffer[ 64 ];
+				sprintf_s( Buffer, "FRAME %llu", FrameMs );
+				ClickTrace( Buffer );
+			}
 		}
 
 		ImGui_ImplOpenGL3_Shutdown();
@@ -482,7 +501,12 @@ namespace Gui
 	}
 
 	LRESULT CALLBACK Overlay::WndProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam ) {
-		if ( ImGui_ImplWin32_WndProcHandler( hWnd, msg, wParam, lParam ) )
+		const bool TraceMouse = msg == WM_LBUTTONDOWN || msg == WM_LBUTTONUP;
+		if ( TraceMouse ) ClickTrace( "WND_ENTER" );
+
+		const bool ImGuiHandled = ImGui_ImplWin32_WndProcHandler( hWnd, msg, wParam, lParam ) != 0;
+		if ( TraceMouse ) ClickTrace( ImGuiHandled ? "WND_IMGUI_HANDLED" : "WND_IMGUI_PASS" );
+		if ( ImGuiHandled )
 			return true;
 
 		if (g_MenuInfo.IsOpen)
@@ -521,6 +545,7 @@ namespace Gui
 			break;
 		}
 
+		if ( TraceMouse ) ClickTrace( "WND_DEF_EXIT" );
 		return DefWindowProc( hWnd, msg, wParam, lParam );
 	}
 
