@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "Gui.hpp"
+#include <Gui/Overlay/Overlay.hpp>
 
 #include <thread>
 #include <atomic>
@@ -413,6 +414,7 @@ void Gui::Rendering()
 						g_MenuInfo.IsOpen = false;
 						SetWindowLong(g_Variables.g_hCheatWindow, GWL_EXSTYLE,
 									  WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT);
+					ApplyOverlayTransparency( );
 					}
 				}
 			}

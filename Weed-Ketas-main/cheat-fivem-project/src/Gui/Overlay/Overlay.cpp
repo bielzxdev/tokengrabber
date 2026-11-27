@@ -48,6 +48,18 @@ namespace Gui
 			&& ClientPoint.y <= RadarPos.y + RadarSize.y;
 	}
 
+	void ApplyOverlayTransparency( )
+	{
+		if ( !IsWindow( g_Variables.g_hCheatWindow ) )
+			return;
+
+		// SetWindowLongPtr(GWL_EXSTYLE) zera os atributos do layered window.
+		// Sem reaplicar o color key, o clear preto do OpenGL vira uma janela
+		// opaca cobrindo o jogo assim que o menu abre.
+		SetLayeredWindowAttributes( g_Variables.g_hCheatWindow,
+			RGB( 0, 0, 0 ), 0, LWA_COLORKEY );
+	}
+
 	static void UpdateOverlayInputStyle( bool ForceInteractive = false )
 	{
 		if ( !IsWindow( g_Variables.g_hCheatWindow ) )
@@ -78,6 +90,7 @@ namespace Gui
 				Style |= static_cast<LONG_PTR>( WS_EX_TRANSPARENT );
 
 			SetWindowLongPtr( g_Variables.g_hCheatWindow, GWL_EXSTYLE, Style );
+			ApplyOverlayTransparency( );
 			SetWindowPos( g_Variables.g_hCheatWindow, NULL, 0, 0, 0, 0,
 				SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED | SWP_NOACTIVATE );
 		}
@@ -167,9 +180,7 @@ namespace Gui
 			return;
 		}
 
-		// LWA_ALPHA com 255 ignora o canal alpha do OpenGL e deixa o overlay
-		// opaco (tela preta). Color key em preto transparency o clear do GL.
-		SetLayeredWindowAttributes(g_Variables.g_hCheatWindow, RGB(0, 0, 0), 0, LWA_COLORKEY);
+		ApplyOverlayTransparency( );
 
 		if (!CreateContext(g_Variables.g_hCheatWindow))
 		{

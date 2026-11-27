@@ -49,4 +49,6 @@ namespace Gui {
 
 	inline Overlay cOverlay;
 
+	void ApplyOverlayTransparency( );
+
 }
